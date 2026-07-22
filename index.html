@@ -8904,10 +8904,12 @@ function App() {
                             textShadow: isNerv
                                 ? "0 0 12px rgba(255,102,0,.7)"
                                 : "0 1px 4px rgba(0,0,0,.4), 0 0 20px rgba(255,255,255,.1)",
-                            flex: 1,
+                            flex: "0 0 auto",
                             margin: 0,
                         }
                     }, isNerv ? "NERV" : "LIMU"),
+                    React.createElement("span", { style:{ fontSize:11, fontWeight:600, color: isNerv ? "rgba(255,102,0,.75)" : "rgba(255,255,255,.5)", marginLeft:8, alignSelf:"center", letterSpacing:0, whiteSpace:"nowrap" } }, "v" + APP_VERSION),
+                    React.createElement("div", { style:{ flex:1 } }),
                     // 輔導紀錄
                     React.createElement("button", { className: "theme-btn", onClick: function() { setGrCenter(true); setGrTab('recent'); setGrFilter('7'); setGrSearch(''); }, title: "輔導紀錄中心", 'aria-label':"開啟輔導紀錄中心", style: { background: grRecords.length > 0 ? "rgba(156,39,176,.35)" : "rgba(255,255,255,.15)", fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, isNerv ? "▣" : "📋"),
                     // 主題切換
@@ -8964,7 +8966,10 @@ function App() {
                         )
                     )
                 ),
-                React.createElement("div", { style:{fontSize:11,opacity:0.75,textAlign:'right',padding:'2px 8px'} }, "📅 " + rocSemester())
+                React.createElement("div", { style:{display:'flex',alignItems:'center',gap:8,fontSize:11,opacity:0.75,padding:'2px 8px'} },
+                    userEmail && React.createElement("span", { style:{color:"rgba(255,255,255,.6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"} }, "👤 " + userEmail),
+                    React.createElement("span", { style:{marginLeft:'auto',whiteSpace:'nowrap'} }, "📅 " + rocSemester())
+                )
             ),
             intro && (React.createElement("div", { className: "nerv-intro" },
                 React.createElement("div", { className: "nerv-intro-inner" },
@@ -9014,7 +9019,6 @@ function App() {
                         driveStatus === "ok" && lastSyncTime && React.createElement("span", { style:{fontSize:9,opacity:.6} }, lastSyncTime),
                         driveStatus === "error" && driveError && React.createElement("span", { style:{fontSize:9,color:"#ff8a80",maxWidth:100,textAlign:"right",lineHeight:1.2} }, driveError)
                     ))),
-            userEmail && React.createElement("div", { style:{padding:"3px 20px 4px",fontSize:11,color:"rgba(255,255,255,.55)",background:"rgba(0,0,0,.2)"} }, "👤 " + userEmail),
             React.createElement("div", { className: "backup-warn"+(isNerv?" backup-warn-nerv":""), style: {
                     background: driveStatus === "ok"
                         ? (isNerv ? "#001a00" : "#f0faf4")
