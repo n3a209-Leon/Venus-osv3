@@ -6456,6 +6456,11 @@ function App() {
     const [wpInputText, setWpInputText] = useState('');
     const [wpInputNote, setWpInputNote] = useState('');
     const [wpSaving, setWpSaving] = useState(false);
+    // ── 多週看板（board）狀態 ──────────────────────────────
+    const [wpBoardDays, setWpBoardDays] = useState({});   // { weekStartMonday: { 'YYYY-MM-DD': [items] } }
+    const [wpDirtyWeeks, setWpDirtyWeeks] = useState({}); // { weekStartMonday: true }
+    const [wpSavingWeek, setWpSavingWeek] = useState(''); // 目前正在儲存的週（週一字串）
+    const wpEditModeRef = useRef('single');               // 'single' = 單週編輯；'board' = 多週看板
     const [grFormalText, setGrFormalText] = useState('');
     const [grCopied, setGrCopied] = useState(false);
     const _GAL_FWD = "./assets/gallery-forward.jpg";
@@ -8221,6 +8226,7 @@ function App() {
         return (+p[1]) + '/' + (+p[2]) + '\n' + '週' + wd;
     }
     function wpOpenPlan(ds) {
+        wpEditModeRef.current = 'single';
         var monday = wpGetMonday((typeof ds === "string" ? ds : null) || today());
         setWpWeekStart(monday);
         var existing = wpPlans.find(function(p){ return p.weekStart === monday; });
@@ -8229,10 +8235,78 @@ function App() {
         setWpOpen(true);
     }
     function wpOpenEdit(monday) {
+        wpEditModeRef.current = 'single';
         setWpWeekStart(monday);
         var existing = wpPlans.find(function(p){ return p.weekStart === monday; });
         setWpDays(existing ? JSON.parse(JSON.stringify(existing.days)) : {});
         setWpView('edit'); setWpOpen(true);
+    }
+    // 清理 days（只保留 content/note/type）
+    function wpCleanDays(src) {
+        var out = {};
+        Object.keys(src || {}).forEach(function(ds) {
+            out[ds] = (src[ds] || []).map(function(it) {
+                return { content: it.content || '', note: it.note || '', type: it.type || 'hw' };
+            });
+        });
+        return out;
+    }
+    // 依「上/下學期開學日」把整學年切成兩區塊的週次
+    function wpSemesterSections() {
+        function toMonday(ds) { return wpGetMonday(ds); }
+        function pad2(n){ return String(n).padStart(2,'0'); }
+        // 開學日若落在週末，順延到下一個上課日（週一）
+        function effOpen(ds) {
+            var d = new Date(ds); var wd = d.getDay();
+            if (wd === 6) d.setDate(d.getDate() + 2);
+            else if (wd === 0) d.setDate(d.getDate() + 1);
+            return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+        }
+        function lastMondayOnOrBefore(y, m0, d) {
+            var e = new Date(y, m0, d);
+            while (e.getDay() !== 1) e.setDate(e.getDate() - 1);
+            return e.getFullYear() + '-' + pad2(e.getMonth()+1) + '-' + pad2(e.getDate());
+        }
+        function weekList(startMon, endMon) {
+            var out = []; if (!startMon || !endMon || startMon > endMon) return out;
+            var cur = startMon; var guard = 0;
+            while (cur <= endMon && guard < 60) { out.push(cur); cur = wpAddDays(cur, 7); guard++; }
+            return out;
+        }
+        var s1raw = _sl.get('hw5ren:semStart1') || '';
+        var s2raw = _sl.get('hw5ren:semStart2') || '';
+        var s1 = s1raw ? effOpen(s1raw) : '';
+        var s2 = s2raw ? effOpen(s2raw) : '';
+        var sections = [];
+        if (s1) {
+            var s1Mon = toMonday(s1);
+            var s1End;
+            if (s2) { s1End = wpAddDays(toMonday(s2), -7); }
+            else { var y1 = +s1.split('-')[0]; s1End = lastMondayOnOrBefore(y1 + 1, 0, 20); } // 缺下學期日 → 概略到隔年1月
+            sections.push({ key:'sem1', label:'上學期', openDay:s1, rangeStart:s1, rangeEnd:(s2 || wpAddDays(s1End, 7)), weeks:weekList(s1Mon, s1End) });
+        }
+        if (s2) {
+            var s2Mon = toMonday(s2);
+            var y2 = +s2.split('-')[0];
+            var s2End = lastMondayOnOrBefore(y2, 6, 31); // 該年 7/31 前最後一個整週
+            if (s2End < s2Mon) s2End = lastMondayOnOrBefore(y2, 7, 31);
+            sections.push({ key:'sem2', label:'下學期', openDay:s2, rangeStart:s2, rangeEnd:(y2 + '-08-01'), weeks:weekList(s2Mon, s2End) });
+        }
+        return sections;
+    }
+    // 進入多週看板：把所有已存週計畫載入編輯緩衝
+    function wpOpenBoard() {
+        wpEditModeRef.current = 'board';
+        var buf = {};
+        wpPlans.forEach(function(p) {
+            if (p && p.weekStart) buf[p.weekStart] = JSON.parse(JSON.stringify(p.days || {}));
+        });
+        setWpBoardDays(buf);
+        setWpDirtyWeeks({});
+        setWpSavingWeek('');
+        setWpView('board');
+        setWpOpen(true);
+        setTimeout(function(){ var el = document.getElementById('wp-board-current'); if (el && el.scrollIntoView) el.scrollIntoView({ block:'center' }); }, 80);
     }
     function wpShiftWeek(delta) {
         var d = new Date(wpWeekStart); d.setDate(d.getDate() + delta * 7);
@@ -8243,88 +8317,130 @@ function App() {
     }
     function wpAddItem(day, content, note, type) {
         if (!content.trim()) return;
+        var item = { content: content.trim(), note: (note||'').trim(), type: type };
+        if (wpEditModeRef.current === 'board') {
+            var ws = wpGetMonday(day);
+            setWpBoardDays(function(prev) {
+                var n = Object.assign({}, prev);
+                var wk = Object.assign({}, n[ws] || {});
+                wk[day] = (wk[day] || []).concat([item]);
+                n[ws] = wk;
+                return n;
+            });
+            setWpDirtyWeeks(function(prev) { var n = Object.assign({}, prev); n[ws] = true; return n; });
+            return;
+        }
         setWpDays(function(prev) {
             var next = Object.assign({}, prev);
-            next[day] = (next[day] || []).concat([{content: content.trim(), note: (note||'').trim(), type: type}]);
+            next[day] = (next[day] || []).concat([item]);
             return next;
         });
     }
     function wpDelItem(day, idx) {
+        if (wpEditModeRef.current === 'board') {
+            var ws = wpGetMonday(day);
+            setWpBoardDays(function(prev) {
+                var n = Object.assign({}, prev);
+                var wk = Object.assign({}, n[ws] || {});
+                wk[day] = (wk[day] || []).filter(function(_,i){ return i !== idx; });
+                n[ws] = wk;
+                return n;
+            });
+            setWpDirtyWeeks(function(prev) { var n = Object.assign({}, prev); n[ws] = true; return n; });
+            return;
+        }
         setWpDays(function(prev) {
             var next = Object.assign({}, prev);
             next[day] = (next[day] || []).filter(function(_,i){ return i !== idx; });
             return next;
         });
     }
+    // 共用儲存核心：寫入單一週計畫 + 版本保護 + 自動把作業填進每日紀錄。回傳 syncResult。
+    async function wpPersistWeek(weekStart, cleanDays) {
+        var ck = currentClassKey();
+        var plan = {
+            id: 'wp_' + stableToken(ck) + '_' + weekStart,
+            classKey: ck,
+            weekStart: weekStart,
+            days: cleanDays,
+            updatedAt: Date.now()
+        };
+        await putSecondaryLocal('wp', ck, plan, 'pending', false);
+        var syncResult = { synced:0, failed:0, conflicts:0 };
+        if (firebaseUid && navigator.onLine) syncResult = await syncSecondaryData(firebaseUid, ck);
+        setWpPlans(function(prev) {
+            return [plan].concat(prev.filter(function(p){ return p.weekStart !== weekStart; }));
+        });
+        var weekDays = wpWeekDays(weekStart);
+        var applyPromises = weekDays.map(async function(planDay) {
+            var hwItems = (cleanDays[planDay] || []).filter(function(i){ return i.type === 'hw'; });
+            if (hwItems.length === 0) return;
+            var d = new Date(planDay); var dow = d.getDay();
+            if (dow === 0 || dow === 6) return;
+            var next = new Date(d); next.setDate(next.getDate() + (dow === 5 ? 3 : 1));
+            var targetDate = next.getFullYear() + '-' + String(next.getMonth()+1).padStart(2,'0') + '-' + String(next.getDate()).padStart(2,'0');
+            var existing = await loadDay(targetDate);
+            var existRows = existing.rows || [];
+            var existAtt = existing.attendance || { personal: new Set(), sick: new Set(), public: new Set() };
+            var existExempt = existing.exempt || {};
+            var existPeriod = existing.attendancePeriod || {};
+            var existSlips = existing.slips || [];
+            var nameCount = {};
+            existRows.forEach(function(r) { if (r.hwName) nameCount[r.hwName] = (nameCount[r.hwName] || 0) + 1; });
+            var baseRows = existRows.length > 0
+                ? existRows.filter(function(r){ return r.sourcePlanId !== plan.id; })
+                : [{ hwName: '聯絡簿', groupData: {} }];
+            if (!baseRows.some(function(r){ return r.hwName === '聯絡簿'; })) {
+                baseRows.unshift({ hwName: '聯絡簿', groupData: {} });
+            }
+            var newRows = baseRows.slice();
+            hwItems.forEach(function(item) {
+                var name = item.content; var cnt = nameCount[name] || 0;
+                var finalName = cnt === 0 ? name : name + (cnt + 1);
+                nameCount[name] = cnt + 1;
+                newRows.push({ hwName: finalName, groupData: {}, sourcePlanId: plan.id });
+            });
+            await saveDay(targetDate, newRows, existAtt, existExempt, existPeriod, existSlips);
+            if (targetDate === selDate) { openDay(selDate); }
+        });
+        await Promise.all(applyPromises);
+        scheduleAutoSync();
+        return syncResult;
+    }
     async function wpSavePlan() {
         var ck = currentClassKey();
         if (!ck) { alert('請先設定班級，再建立週計畫'); return; }
         setWpSaving(true);
         try {
-            var cleanDays = {};
-            Object.keys(wpDays).forEach(function(ds) {
-                cleanDays[ds] = (wpDays[ds] || []).map(function(item) {
-                    return { content: item.content || '', note: item.note || '', type: item.type || 'hw' };
-                });
-            });
-            var plan = {
-                id: 'wp_' + stableToken(ck) + '_' + wpWeekStart,
-                classKey: ck,
-                weekStart: wpWeekStart,
-                days: cleanDays,
-                updatedAt: Date.now()
-            };
-            await putSecondaryLocal('wp', ck, plan, 'pending', false);
-            var syncResult = { synced:0, failed:0, conflicts:0 };
-            if (firebaseUid && navigator.onLine) syncResult = await syncSecondaryData(firebaseUid, ck);
-                setWpPlans(function(prev) {
-                    return [plan].concat(prev.filter(function(p){ return p.weekStart !== wpWeekStart; }));
-                });
-                setWpDays(cleanDays);
-                var weekDays = wpWeekDays(wpWeekStart);
-                var applyPromises = weekDays.map(async function(planDay) {
-                    var hwItems = (cleanDays[planDay] || []).filter(function(i){ return i.type === 'hw'; });
-                    if (hwItems.length === 0) return;
-                    var d = new Date(planDay); var dow = d.getDay();
-                    if (dow === 0 || dow === 6) return;
-                    var next = new Date(d); next.setDate(next.getDate() + (dow === 5 ? 3 : 1));
-                    var targetDate = next.getFullYear() + '-' + String(next.getMonth()+1).padStart(2,'0') + '-' + String(next.getDate()).padStart(2,'0');
-                    var existing = await loadDay(targetDate);
-                    var existRows = existing.rows || [];
-                    var existAtt = existing.attendance || { personal: new Set(), sick: new Set(), public: new Set() };
-                    var existExempt = existing.exempt || {};
-                    // Bug fix: 直接從已讀的 existing 取 attendancePeriod，不重複呼叫 loadDay
-                    var existPeriod = existing.attendancePeriod || {};
-                    var existSlips = existing.slips || [];
-                    var nameCount = {};
-                    existRows.forEach(function(r) { if (r.hwName) nameCount[r.hwName] = (nameCount[r.hwName] || 0) + 1; });
-                    // 確保聯絡簿永遠是第一筆
-                    var baseRows = existRows.length > 0
-                        ? existRows.filter(function(r){ return r.sourcePlanId !== plan.id; })
-                        : [{ hwName: '聯絡簿', groupData: {} }];
-                    if (!baseRows.some(function(r){ return r.hwName === '聯絡簿'; })) {
-                        baseRows.unshift({ hwName: '聯絡簿', groupData: {} });
-                    }
-                    var newRows = baseRows.slice();
-                    hwItems.forEach(function(item) {
-                        var name = item.content; var cnt = nameCount[name] || 0;
-                        var finalName = cnt === 0 ? name : name + (cnt + 1);
-                        nameCount[name] = cnt + 1;
-                        newRows.push({ hwName: finalName, groupData: {}, sourcePlanId: plan.id });
-                    });
-                    await saveDay(targetDate, newRows, existAtt, existExempt, existPeriod, existSlips);
-                    if (targetDate === selDate) { openDay(selDate); }
-                });
-                await Promise.all(applyPromises);
-                scheduleAutoSync();
-                setWpOpen(false);
-                if (syncResult.conflicts > 0) {
-                    alert('⚠️ 週計畫與另一台裝置的版本不同，兩份資料都已保留，請到「同步衝突」處理');
-                } else if (!firebaseUid || !navigator.onLine || syncResult.failed > 0) {
-                    alert('✅ 週計畫已儲存在此裝置，恢復網路並登入後會自動同步');
-                }
+            var cleanDays = wpCleanDays(wpDays);
+            var syncResult = await wpPersistWeek(wpWeekStart, cleanDays);
+            setWpDays(cleanDays);
+            setWpOpen(false);
+            if (syncResult.conflicts > 0) {
+                alert('⚠️ 週計畫與另一台裝置的版本不同，兩份資料都已保留，請到「同步衝突」處理');
+            } else if (!firebaseUid || !navigator.onLine || syncResult.failed > 0) {
+                alert('✅ 週計畫已儲存在此裝置，恢復網路並登入後會自動同步');
+            }
         } catch(e) { alert('儲存錯誤：' + String(e.message || e)); }
         setWpSaving(false);
+    }
+    // 看板：只儲存指定的一週
+    async function wpSaveWeek(weekStart) {
+        var ck = currentClassKey();
+        if (!ck) { alert('請先設定班級，再建立週計畫'); return; }
+        setWpSavingWeek(weekStart);
+        try {
+            var cleanDays = wpCleanDays(wpBoardDays[weekStart] || {});
+            var syncResult = await wpPersistWeek(weekStart, cleanDays);
+            setWpBoardDays(function(prev) { var n = Object.assign({}, prev); n[weekStart] = cleanDays; return n; });
+            setWpDirtyWeeks(function(prev) { var n = Object.assign({}, prev); delete n[weekStart]; return n; });
+            if (syncResult.conflicts > 0) {
+                alert('⚠️ 此週與另一台裝置的版本不同，兩份都已保留，請到「同步衝突」處理');
+            } else if (!firebaseUid || !navigator.onLine || syncResult.failed > 0) {
+                alert('✅ 已儲存在此裝置，恢復網路並登入後會自動同步');
+            }
+        } catch(e) { alert('儲存錯誤：' + String(e.message || e)); }
+        setWpSavingWeek('');
     }
     async function wpLoadPlans() {
         var ck = currentClassKey();
@@ -11100,8 +11216,8 @@ function App() {
                             onClick: function() { wpOpenEdit(wpGetMonday(today())); }
                         }, "✚ 新增本週計畫"),
                         React.createElement("button", { className: "wp-new-btn", style:{flex:1,margin:0,background:"rgba(255,255,255,.08)",color:"rgba(255,255,255,.65)"},
-                            onClick: function() { setWpView('overview'); }
-                        }, "📋 學期總覽")
+                            onClick: function() { wpOpenBoard(); }
+                        }, "📋 學期看板")
                     )
                 ),
                 wpView === 'overview' && React.createElement(React.Fragment, null,
@@ -11231,6 +11347,100 @@ function App() {
                             }, "✏️ 編輯此週計畫")
                         );
                     })()
+                ),
+                wpView === 'board' && React.createElement(React.Fragment, null,
+                    React.createElement("div", { className: "wp-header" },
+                        React.createElement("button", { className: "wp-back-btn", onClick: function() { wpEditModeRef.current='single'; setWpView('list'); } }, "‹"),
+                        React.createElement("div", { className: "wp-title" }, "📋 學期作業看板"),
+                        React.createElement("button", { style:{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"inherit",opacity:.6}, onClick: function() { wpEditModeRef.current='single'; setWpOpen(false); setWpView('list'); } }, "×")
+                    ),
+                    React.createElement("div", { style:{overflowY:'auto', flex:1, padding:'4px 0 16px', WebkitOverflowScrolling:'touch'} },
+                        (function() {
+                            var sections = wpSemesterSections();
+                            if (!sections.length) return React.createElement("div", { style:{padding:'24px 16px', textAlign:'center', color:'rgba(255,255,255,.5)', fontSize:13, lineHeight:1.7} }, "請先到「設定」填寫上／下學期開學日，才能依週次顯示看板");
+                            var todayStr = today();
+                            return sections.map(function(sec) {
+                                return React.createElement("div", { key: sec.key },
+                                    React.createElement("div", { style:{position:'sticky', top:0, zIndex:3, background: theme==='nerv'?'#120400':theme==='nebula'?'#0a0c20':'#12153a', color:'#c8b0ff', fontSize:13, fontWeight:800, padding:'8px 14px', borderBottom:'1px solid rgba(255,255,255,.08)'} }, '【'+sec.label+'】'),
+                                    sec.weeks.length === 0
+                                        ? React.createElement("div", { style:{padding:'10px 16px', color:'rgba(255,255,255,.4)', fontSize:12} }, "（此學期尚無週次，請確認開學日設定）")
+                                        : sec.weeks.map(function(monday, wi) {
+                                            var days = wpWeekDays(monday);
+                                            var isCurrentWeek = days.some(function(d){ return d === todayStr; });
+                                            var ms = monday.split('-'); var fe = days[4].split('-');
+                                            var rangeLabel = (+ms[1])+'/'+(+ms[2])+' – '+(+fe[1])+'/'+(+fe[2]);
+                                            var dirty = !!wpDirtyWeeks[monday];
+                                            var saving = wpSavingWeek === monday;
+                                            var wkDays = wpBoardDays[monday] || {};
+                                            return React.createElement("div", {
+                                                key: monday,
+                                                id: isCurrentWeek ? 'wp-board-current' : undefined,
+                                                style:{ margin:'8px 10px', borderRadius:12,
+                                                    background: isCurrentWeek ? 'rgba(103,58,183,.18)' : 'rgba(255,255,255,.03)',
+                                                    border: isCurrentWeek ? '1px solid rgba(156,100,208,.55)' : '1px solid rgba(255,255,255,.07)',
+                                                    padding:'8px 8px 10px' }
+                                            },
+                                                React.createElement("div", { style:{display:'flex', alignItems:'center', gap:6, padding:'2px 4px 6px'} },
+                                                    React.createElement("span", { style:{fontSize:13, fontWeight:800, color: isCurrentWeek?'#ce93d8':'rgba(255,255,255,.8)'} }, '第'+(wi+1)+'週'),
+                                                    React.createElement("span", { style:{fontSize:12, color:'rgba(255,255,255,.5)'} }, rangeLabel),
+                                                    isCurrentWeek && React.createElement("span", { style:{fontSize:10,background:'#7b1fa2',color:'#fff',borderRadius:4,padding:'1px 6px'} }, "本週"),
+                                                    dirty && React.createElement("span", { style:{fontSize:10,background:'#e65100',color:'#fff',borderRadius:4,padding:'1px 6px'} }, "未儲存"),
+                                                    React.createElement("span", { style:{flex:1} }),
+                                                    React.createElement("button", {
+                                                        disabled: !dirty || saving,
+                                                        onClick: function(){ if (dirty && !saving) wpSaveWeek(monday); },
+                                                        style:{ fontSize:12, fontWeight:700, border:'none', borderRadius:8, padding:'6px 12px', minHeight:36,
+                                                            cursor: (dirty && !saving)?'pointer':'default',
+                                                            color: (dirty && !saving)?'#fff':'rgba(255,255,255,.35)',
+                                                            background: (dirty && !saving)?'linear-gradient(135deg,#5e35b1,#7b1fa2)':'rgba(255,255,255,.06)' }
+                                                    }, saving ? "儲存中…" : "💾 儲存")
+                                                ),
+                                                React.createElement("table", { className: "wp-table" },
+                                                    React.createElement("thead", null,
+                                                        React.createElement("tr", null,
+                                                            days.map(function(ds) {
+                                                                var inRange = ds >= sec.rangeStart && ds < sec.rangeEnd;
+                                                                var isToday = ds === todayStr;
+                                                                var pts = wpFmtDate(ds).split('\n');
+                                                                return React.createElement("th", { key: ds, className: "wp-th" + (isToday?" today-col":""), style: inRange?null:{opacity:.35} },
+                                                                    pts[0], React.createElement("br", null), pts[1],
+                                                                    isToday && React.createElement("span", { className:"wp-today-badge" }, "今")
+                                                                );
+                                                            })
+                                                        )
+                                                    ),
+                                                    React.createElement("tbody", null,
+                                                        React.createElement("tr", null,
+                                                            days.map(function(ds) {
+                                                                var inRange = ds >= sec.rangeStart && ds < sec.rangeEnd;
+                                                                var items = wkDays[ds] || [];
+                                                                if (!inRange) {
+                                                                    return React.createElement("td", { key: ds, className: "wp-td", style:{opacity:.3} },
+                                                                        React.createElement("div", { style:{fontSize:10, color:'rgba(255,255,255,.3)', textAlign:'center', padding:'8px 0'} }, "—")
+                                                                    );
+                                                                }
+                                                                return React.createElement("td", { key: ds, className: "wp-td" },
+                                                                    items.map(function(item, idx) {
+                                                                        return React.createElement("div", { key: idx, className: "wp-item" },
+                                                                            React.createElement("div", { className: "wp-item-text " + item.type, onClick: function(){ hwPickerOpenForWp(ds); } },
+                                                                                item.content,
+                                                                                item.note ? React.createElement("span", { style:{opacity:.6,fontSize:10,display:"block"} }, item.note) : null
+                                                                            ),
+                                                                            React.createElement("button", { className: "wp-del-btn", onClick: function(){ wpDelItem(ds, idx); } }, "×")
+                                                                        );
+                                                                    }),
+                                                                    React.createElement("button", { className: "wp-add-btn", onClick: function(){ hwPickerOpenForWp(ds); } }, "+")
+                                                                );
+                                                            })
+                                                        )
+                                                    )
+                                                )
+                                            );
+                                        })
+                                );
+                            });
+                        })()
+                    )
                 ),
                 wpView === 'edit' && React.createElement(React.Fragment, null,
                     React.createElement("div", { className: "wp-header" },
