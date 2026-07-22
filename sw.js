@@ -2,9 +2,11 @@
 // 導覽採 Network First，靜態檔採 Stale While Revalidate。
 
 const CACHE_PREFIX = 'hw-tracker-';
-const CACHE_NAME = CACHE_PREFIX + 'v9';
+const CACHE_NAME = CACHE_PREFIX + 'v12';
+const BUILD_ID = 'limu-teacher-v12-20260722';
 const PRECACHE_URLS = [
   './index.html',
+  './version.json',
   './react-dom.production.min.js',
   './manifest.webmanifest',
   './app-icon.svg',
@@ -18,10 +20,33 @@ const PRECACHE_URLS = [
 
 self.addEventListener('install', function(event) {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(function(cache) { return cache.addAll(PRECACHE_URLS); })
-      .then(function() { return self.skipWaiting(); })
+    Promise.all([
+      fetch('./version.json', { cache:'no-store' }).then(function(response) {
+        if (!response.ok) throw new Error('version.json unavailable');
+        return response.json();
+      }),
+      fetch('./index.html', { cache:'no-store' }).then(function(response) {
+        if (!response.ok) throw new Error('index.html unavailable');
+        return response.text();
+      })
+    ]).then(function(results) {
+      if (!results[0] || results[0].buildId !== BUILD_ID || results[1].indexOf(BUILD_ID) < 0) {
+        throw new Error('LIMU deployment files are from different builds');
+      }
+      return caches.open(CACHE_NAME);
+    }).then(function(cache) { return cache.addAll(PRECACHE_URLS); })
   );
+});
+
+self.addEventListener('message', function(event) {
+  var data = event.data || {};
+  if (data.type === 'SKIP_WAITING') {
+    event.waitUntil(self.skipWaiting());
+    return;
+  }
+  if (data.type === 'GET_BUILD_INFO' && event.ports && event.ports[0]) {
+    event.ports[0].postMessage({ buildId:BUILD_ID, cacheName:CACHE_NAME });
+  }
 });
 
 self.addEventListener('activate', function(event) {
@@ -51,9 +76,14 @@ self.addEventListener('fetch', function(event) {
     event.respondWith(
       fetch(event.request).then(function(response) {
         if (response && response.ok) {
-          event.waitUntil(caches.open(CACHE_NAME).then(function(cache) {
-            return cache.put('./index.html', response.clone());
-          }));
+          var verifyCopy = response.clone();
+          var cacheCopy = response.clone();
+          event.waitUntil(verifyCopy.text().then(function(text) {
+            if (text.indexOf(BUILD_ID) < 0) return;
+            return caches.open(CACHE_NAME).then(function(cache) {
+              return cache.put('./index.html', cacheCopy);
+            });
+          }).catch(function() {}));
         }
         return response;
       }).catch(function() {
@@ -65,6 +95,16 @@ self.addEventListener('fetch', function(event) {
         });
       })
     );
+    return;
+  }
+
+  // 版本描述永遠先讀伺服器；離線才使用已驗證過的快取版本。
+  if (url.pathname.endsWith('/version.json')) {
+    event.respondWith(fetch(event.request).catch(function() {
+      return caches.match('./version.json').then(function(cached) {
+        return cached || new Response('{}', { status:503, headers:{'Content-Type':'application/json'} });
+      });
+    }));
     return;
   }
 

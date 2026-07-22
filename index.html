@@ -2163,6 +2163,25 @@
     }
   };
 
+  // 讀取設定資料時一併取得 revision，讓本機能以交易式寫入避免跨裝置覆蓋。
+  window.fsGetWithMeta = async function(uid, key) {
+    try {
+      var db = requireFirestore(uid);
+      var doc = await db.collection('users').doc(uid).collection('data').doc(key).get();
+      if (!doc.exists) return null;
+      var data = doc.data() || {};
+      return {
+        value: data.value,
+        updatedAt: data.updatedAt || '',
+        revision: Number(data.revision || 0),
+        deviceId: data.deviceId || ''
+      };
+    } catch(e) {
+      try { window._writeLog && window._writeLog('error', 'fsGetWithMeta '+key+': '+String(e && e.message || e)); } catch(ex) {}
+      throw e;
+    }
+  };
+
   window.fsSet = async function(uid, key, value) {
     try {
       var db = requireFirestore(uid);
@@ -2804,6 +2823,16 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const COUNSEL_PERIODS = ["早自習", "第1節", "第2節", "第3節", "第4節", "午休", "第5節", "第6節", "放學後"];
 const COUNSEL_TYPES = ["學習", "行為", "情緒", "人際", "家庭", "其他"];
 const COUNSEL_FOLLOWUP = ["需追蹤", "已處理", "轉介"];
+const APP_VERSION = "12.0.0";
+const APP_BUILD_DATE = "2026-07-22";
+const APP_BUILD_ID = "limu-teacher-v12-20260722";
+const APP_CACHE_NAME = "hw-tracker-v12";
+window.__LIMU_BUILD__ = Object.freeze({
+    appVersion: APP_VERSION,
+    buildDate: APP_BUILD_DATE,
+    buildId: APP_BUILD_ID,
+    cacheName: APP_CACHE_NAME
+});
 // ── Drive 已改用 Firestore ──
 const gSignIn = typeof window !== "undefined" && window.gSignIn ? window.gSignIn : async () => { throw new Error("請使用 PWA 版本登入 Google"); };
 const LEAVE_TYPES = [
@@ -3053,6 +3082,59 @@ function calendarProfileInfo(calendar) {
     var now = new Date(), renewal = new Date(startYear + 1, 6, 1), expiry = new Date(startYear + 1, 7, 1);
     return { rocYear:rocYear, first:first, last:last, needsUpdate:now >= renewal, expired:now >= expiry };
 }
+function nextAcademicSchoolYear(currentYear, referenceDate) {
+    var saved = parseInt(currentYear, 10);
+    if (/^20\d{2}$/.test(String(saved))) return String(saved + 1);
+    var now = referenceDate instanceof Date ? referenceDate : new Date();
+    var academicStart = now.getMonth() + 1 >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+    return String(academicStart + 1);
+}
+function normalizedClassIdentity(value) {
+    return String(value || '').trim().replace(/\s+/g, '').toLowerCase();
+}
+function findExistingSchoolYearTransition(classList, sourceClassKey, targetYear, targetSchool, targetClassName) {
+    var sourceKey = String(sourceClassKey || '');
+    var year = String(targetYear || '');
+    var school = normalizedClassIdentity(targetSchool);
+    var className = normalizedClassIdentity(targetClassName);
+    return (Array.isArray(classList) ? classList : []).find(function(item) {
+        if (!item || String(item.year || '') !== year) return false;
+        var sameTransition = sourceKey && String(item.transitionedFrom || '') === sourceKey;
+        var sameClass = className && normalizedClassIdentity(item.className) === className &&
+            normalizedClassIdentity(item.school) === school;
+        return sameTransition || sameClass;
+    }) || null;
+}
+function isValidIsoDate(value) {
+    var text = String(value || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+    var parts = text.split('-').map(Number);
+    var date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    return date.getUTCFullYear() === parts[0] && date.getUTCMonth() === parts[1] - 1 && date.getUTCDate() === parts[2];
+}
+function validateSchoolYearTransitionDates(targetYear, semStart1, semStart2, calendar) {
+    var year = parseInt(targetYear, 10);
+    var first = String(semStart1 || ''), second = String(semStart2 || '');
+    if (!isValidIsoDate(first) || first < year + '-08-01' || first > year + '-12-31') {
+        return '上學期開學日必須位於 ' + year + ' 年 8 月至 12 月';
+    }
+    var followingYear = year + 1;
+    if (!isValidIsoDate(second) || second < followingYear + '-01-01' || second > followingYear + '-07-31') {
+        return '下學期開始日必須位於 ' + followingYear + ' 年 1 月至 7 月';
+    }
+    if (second <= first) return '下學期開始日必須晚於上學期開學日';
+    var rangeStart = year + '-08-01', rangeEnd = followingYear + '-07-31';
+    var invalidDate = Object.keys(calendar && typeof calendar === 'object' ? calendar : {}).find(function(dateKey) {
+        return !isValidIsoDate(dateKey) || dateKey < rangeStart || dateKey > rangeEnd;
+    });
+    if (invalidDate) return '行事曆日期 ' + invalidDate + ' 不在本學年度範圍（' + rangeStart + '～' + rangeEnd + '）';
+    return '';
+}
+window.__limuV11Test = Object.assign(window.__limuV11Test || {}, {
+    nextAcademicSchoolYear:nextAcademicSchoolYear,
+    findExistingSchoolYearTransition:findExistingSchoolYearTransition,
+    validateSchoolYearTransitionDates:validateSchoolYearTransitionDates
+});
 // ── 班級資料前綴（隔離不同班級的 day:/counsel: 資料）────────────────────────
 // 回傳格式："2026_五年王班:" 或 "" (未設定時)
 // 每次呼叫即時讀 localStorage，切換班級後自動生效
@@ -3070,8 +3152,40 @@ function classPrefix() {
 function currentClassKey() { return classPrefix().replace(/:$/, ''); }
 
 // ── 次要資料離線層：週計畫 / 正式輔導紀錄 ────────────────────────────────
-const APP_SCHEMA_VERSION = 3;
+const APP_SCHEMA_VERSION = 5;
 const SYNC_META_KEY = 'hw5ren:syncMetaV1';
+const SETTINGS_DIRTY_MAP_KEY = 'hw5ren:settingsDirtyV10';
+function readSettingsDirtyMap() {
+    try {
+        var parsed = JSON.parse(_sl.get(SETTINGS_DIRTY_MAP_KEY) || '{}');
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch(e) { return {}; }
+}
+function writeSettingsDirtyMap(map) {
+    try { _sl.set(SETTINGS_DIRTY_MAP_KEY, JSON.stringify(map || {})); } catch(e) {}
+    try {
+        if (Object.keys(map || {}).length > 0) _sl.set('hw5ren:settingsDirty', '1');
+        else _sl.remove('hw5ren:settingsDirty');
+    } catch(ex) {}
+}
+function markSettingsDirty(key, label) {
+    if (!key) return;
+    var map = readSettingsDirtyMap();
+    map[key] = { changedAt:Date.now(), label:label || key };
+    writeSettingsDirtyMap(map);
+}
+function getDirtySettingKeys() { return Object.keys(readSettingsDirtyMap()); }
+function clearSettingsDirty(keys) {
+    var map = readSettingsDirtyMap();
+    (keys || []).forEach(function(key){ delete map[key]; });
+    writeSettingsDirtyMap(map);
+}
+function isSettingDirty(key) { return !!readSettingsDirtyMap()[key]; }
+function syncRetryDelay(attempt) {
+    var delays = [5000, 15000, 45000, 120000, 300000];
+    var index = Math.max(0, Math.min(Number(attempt || 0), delays.length - 1));
+    return delays[index];
+}
 function stableToken(input) {
     var str = String(input || ''), h = 2166136261;
     for (var i = 0; i < str.length; i++) {
@@ -3080,6 +3194,315 @@ function stableToken(input) {
     }
     return ('00000000' + (h >>> 0).toString(16)).slice(-8);
 }
+
+// ── v12 公開學校行事曆（零付費、瀏覽器端解析）────────────────────────────
+const SCHOOL_EVENT_MAX_BYTES = 5 * 1024 * 1024;
+const SCHOOL_EVENT_MAX_COUNT = 3000;
+function normalizePublicUrl(value, baseUrl) {
+    var raw = String(value || '').trim();
+    if (!raw) return '';
+    try {
+        var url = new URL(raw, baseUrl || (typeof location !== 'undefined' ? location.href : undefined));
+        if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+        url.hash = '';
+        return url.href;
+    } catch(e) { return ''; }
+}
+function addIsoDays(dateStr, amount) {
+    var p = String(dateStr || '').split('-').map(Number);
+    if (p.length !== 3 || !p[0] || !p[1] || !p[2]) return '';
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + Number(amount || 0)));
+    return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0') + '-' + String(d.getUTCDate()).padStart(2,'0');
+}
+function isoDayDistance(a, b) {
+    var ad = new Date(String(a) + 'T00:00:00Z'), bd = new Date(String(b) + 'T00:00:00Z');
+    return Math.round((bd - ad) / 86400000);
+}
+function normalizeLooseDate(value) {
+    var text = String(value || '').trim();
+    var m = text.match(/^(\d{3,4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+    if (m) {
+        var y = Number(m[1]); if (y < 1911) y += 1911;
+        var result = y + '-' + String(Number(m[2])).padStart(2,'0') + '-' + String(Number(m[3])).padStart(2,'0');
+        return isValidIsoDate(result) ? result : '';
+    }
+    m = text.match(/^(\d{4})(\d{2})(\d{2})/);
+    if (m) {
+        var compact = m[1] + '-' + m[2] + '-' + m[3];
+        return isValidIsoDate(compact) ? compact : '';
+    }
+    m = text.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/);
+    if (m) {
+        var western = m[3] + '-' + String(Number(m[1])).padStart(2,'0') + '-' + String(Number(m[2])).padStart(2,'0');
+        return isValidIsoDate(western) ? western : '';
+    }
+    return '';
+}
+function unescapeIcsText(value) {
+    return String(value || '').replace(/\\n/gi, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\').trim();
+}
+function icsDateValue(raw) {
+    var value = String(raw || '').trim();
+    if (/^\d{8}$/.test(value)) return value.slice(0,4)+'-'+value.slice(4,6)+'-'+value.slice(6,8);
+    if (/^\d{8}T\d{6}Z$/.test(value)) {
+        var d = new Date(Date.UTC(+value.slice(0,4), +value.slice(4,6)-1, +value.slice(6,8), +value.slice(9,11), +value.slice(11,13), +value.slice(13,15)));
+        try {
+            var parts = new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Taipei', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(d);
+            var map = {}; parts.forEach(function(part){ map[part.type] = part.value; });
+            return map.year+'-'+map.month+'-'+map.day;
+        } catch(e) { return d.toISOString().slice(0,10); }
+    }
+    if (/^\d{8}T\d{4,6}$/.test(value)) return value.slice(0,4)+'-'+value.slice(4,6)+'-'+value.slice(6,8);
+    return normalizeLooseDate(value);
+}
+function icsTimeValue(raw) {
+    var value = String(raw || '').trim(), m = value.match(/^\d{8}T(\d{2})(\d{2})/);
+    return m ? m[1] + ':' + m[2] : '';
+}
+function schoolEventIdentity(event) {
+    var source = String(event && event.sourceUrl || event && event.sourceLabel || 'local');
+    var uid = String(event && event.uid || '');
+    var base = uid ? source + '|' + uid + '|' + event.date : source + '|' + event.date + '|' + event.title;
+    return 'se_' + stableToken(base);
+}
+function normalizeSchoolEvent(event, sourceInfo) {
+    var src = sourceInfo || {}, date = normalizeLooseDate(event && event.date);
+    var title = String(event && (event.title || event.summary) || '').replace(/\s+/g,' ').trim().slice(0,500);
+    if (!date || !title) return null;
+    var normalized = {
+        id:'', date:date, time:String(event && event.time || '').slice(0,20), title:title,
+        description:String(event && event.description || '').trim().slice(0,4000),
+        location:String(event && event.location || '').trim().slice(0,500),
+        department:String(event && event.department || src.label || '').trim().slice(0,120),
+        sourceLabel:String(event && event.sourceLabel || src.label || '公開行事曆').trim().slice(0,120),
+        sourceUrl:normalizePublicUrl(event && event.sourceUrl || src.url || ''), uid:String(event && event.uid || ''),
+        important:!!(event && event.important), sourceMissing:!!(event && event.sourceMissing), updatedAt:event && event.updatedAt || new Date().toISOString()
+    };
+    normalized.id = String(event && event.id || schoolEventIdentity(normalized));
+    return normalized;
+}
+function normalizeSchoolEventStore(value) {
+    var raw = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    var seen = {}, events = [];
+    (Array.isArray(raw.events) ? raw.events : []).forEach(function(item){
+        var normalized = normalizeSchoolEvent(item, {});
+        if (normalized && !seen[normalized.id] && events.length < SCHOOL_EVENT_MAX_COUNT) { seen[normalized.id] = true; events.push(normalized); }
+    });
+    var excluded = (Array.isArray(raw.excluded) ? raw.excluded : []).map(function(item){
+        var event = normalizeSchoolEvent(item, {});
+        if (!event) return null;
+        event.excludedAt = item.excludedAt || new Date().toISOString();
+        return event;
+    }).filter(Boolean).slice(-SCHOOL_EVENT_MAX_COUNT);
+    var profile = raw.profile && typeof raw.profile === 'object' ? raw.profile : {};
+    return { version:1, profile:{
+        schoolName:String(profile.schoolName || '').slice(0,120),
+        schoolUrl:normalizePublicUrl(profile.schoolUrl || ''),
+        sourceUrls:Array.isArray(profile.sourceUrls) ? profile.sourceUrls.map(function(url){return normalizePublicUrl(url);}).filter(Boolean).slice(0,50) : [],
+        lastCheckedAt:String(profile.lastCheckedAt || ''), lastImportedAt:String(profile.lastImportedAt || '')
+    }, events:events, excluded:excluded };
+}
+function parseIcsPropertyLines(text) {
+    var unfolded = String(text || '').replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '').split(/\r?\n/);
+    var calendarName = '', blocks = [], current = null;
+    unfolded.forEach(function(line){
+        var colon = line.indexOf(':');
+        if (colon < 0) return;
+        var left = line.slice(0, colon), value = line.slice(colon + 1), key = left.split(';')[0].toUpperCase();
+        if (key === 'X-WR-CALNAME') calendarName = unescapeIcsText(value);
+        if (key === 'BEGIN' && value.toUpperCase() === 'VEVENT') { current = {}; return; }
+        if (key === 'END' && value.toUpperCase() === 'VEVENT') { if (current) blocks.push(current); current = null; return; }
+        if (!current) return;
+        if (!current[key]) current[key] = [];
+        current[key].push({ left:left, value:value });
+    });
+    return { calendarName:calendarName, blocks:blocks };
+}
+function rruleMatchesDate(date, start, rule) {
+    var diff = isoDayDistance(start, date); if (diff < 0) return false;
+    var interval = Math.max(1, parseInt(rule.INTERVAL || '1',10) || 1), freq = String(rule.FREQ || '').toUpperCase();
+    var d = new Date(date+'T00:00:00Z'), s = new Date(start+'T00:00:00Z');
+    var dayCodes = ['SU','MO','TU','WE','TH','FR','SA'];
+    if (freq === 'DAILY') return diff % interval === 0;
+    if (freq === 'WEEKLY') {
+        if (Math.floor(diff/7) % interval !== 0) return false;
+        var byDays = String(rule.BYDAY || dayCodes[s.getUTCDay()]).split(',').map(function(x){return x.replace(/^[+-]?\d+/,'');});
+        return byDays.indexOf(dayCodes[d.getUTCDay()]) >= 0;
+    }
+    if (freq === 'MONTHLY') {
+        var months = (d.getUTCFullYear()-s.getUTCFullYear())*12 + d.getUTCMonth()-s.getUTCMonth();
+        var monthDays = String(rule.BYMONTHDAY || s.getUTCDate()).split(',').map(Number);
+        return months >= 0 && months % interval === 0 && monthDays.indexOf(d.getUTCDate()) >= 0;
+    }
+    if (freq === 'YEARLY') return (d.getUTCFullYear()-s.getUTCFullYear()) % interval === 0 && d.getUTCMonth() === s.getUTCMonth() && d.getUTCDate() === s.getUTCDate();
+    return date === start;
+}
+function parseIcsEvents(text, sourceInfo, rangeStart, rangeEnd) {
+    var parsed = parseIcsPropertyLines(text), output = [], byId = {};
+    var startLimit = rangeStart || '2000-01-01', endLimit = rangeEnd || '2100-12-31';
+    parsed.blocks.forEach(function(block){
+        function first(key){ return block[key] && block[key][0] ? block[key][0].value : ''; }
+        if (String(first('STATUS')).toUpperCase() === 'CANCELLED') return;
+        var start = icsDateValue(first('DTSTART')), title = unescapeIcsText(first('SUMMARY'));
+        if (!start || !title) return;
+        var end = icsDateValue(first('DTEND')) || addIsoDays(start,1);
+        var duration = Math.max(1, isoDayDistance(start,end));
+        var rule = {}, ruleText = first('RRULE');
+        String(ruleText || '').split(';').forEach(function(pair){ var pos=pair.indexOf('='); if(pos>0) rule[pair.slice(0,pos).toUpperCase()]=pair.slice(pos+1); });
+        var exdates = {};
+        (block.EXDATE || []).forEach(function(item){ String(item.value || '').split(',').forEach(function(v){ var d=icsDateValue(v); if(d) exdates[d]=true; }); });
+        var dates = [];
+        if (rule.FREQ) {
+            var until = icsDateValue(rule.UNTIL) || endLimit, countLimit = Math.min(1000, parseInt(rule.COUNT || '1000',10) || 1000), matches = 0;
+            var scanEnd = until < endLimit ? until : endLimit;
+            for (var scan=start, guard=0; scan && scan<=scanEnd && guard<3700 && matches<countLimit; scan=addIsoDays(scan,1), guard++) {
+                if (rruleMatchesDate(scan,start,rule)) { matches++; if (!exdates[scan] && scan>=startLimit) dates.push(scan); }
+            }
+        } else dates = [start];
+        dates.forEach(function(occurrence){
+            for (var span=0; span<duration && output.length<SCHOOL_EVENT_MAX_COUNT; span++) {
+                var date = addIsoDays(occurrence,span); if (date<startLimit || date>endLimit) continue;
+                var event = normalizeSchoolEvent({
+                    date:date, time:icsTimeValue(first('DTSTART')), title:title,
+                    description:unescapeIcsText(first('DESCRIPTION')), location:unescapeIcsText(first('LOCATION')),
+                    uid:first('UID') || title, department:parsed.calendarName || (sourceInfo && sourceInfo.label),
+                    sourceLabel:parsed.calendarName || (sourceInfo && sourceInfo.label), sourceUrl:sourceInfo && sourceInfo.url
+                }, sourceInfo || {});
+                if (!event) continue;
+                event.id = schoolEventIdentity(Object.assign({}, event, { uid:(first('UID') || title) + '|' + occurrence + '|' + span }));
+                byId[event.id] = event;
+            }
+        });
+    });
+    Object.keys(byId).forEach(function(id){ if (output.length<SCHOOL_EVENT_MAX_COUNT) output.push(byId[id]); });
+    return output.sort(function(a,b){ return (a.date+a.time+a.title).localeCompare(b.date+b.time+b.title); });
+}
+function parseCsvTable(text) {
+    var rows=[], row=[], cell='', quoted=false, input=String(text || '').replace(/^\uFEFF/,'');
+    for (var i=0;i<input.length;i++) {
+        var ch=input[i];
+        if (ch==='"') { if (quoted && input[i+1]==='"') { cell+='"'; i++; } else quoted=!quoted; }
+        else if (ch===',' && !quoted) { row.push(cell); cell=''; }
+        else if ((ch==='\n' || ch==='\r') && !quoted) { if(ch==='\r'&&input[i+1]==='\n') i++; row.push(cell); if(row.some(function(v){return v.trim();})) rows.push(row); row=[]; cell=''; }
+        else cell+=ch;
+    }
+    row.push(cell); if(row.some(function(v){return v.trim();})) rows.push(row);
+    return rows;
+}
+function parseCsvEvents(text, sourceInfo) {
+    var table=parseCsvTable(text); if(table.length<2) return [];
+    var headers=table[0].map(function(h){return String(h).trim().toLowerCase();});
+    function column(names){ for(var i=0;i<names.length;i++){var idx=headers.indexOf(names[i]); if(idx>=0)return idx;} return -1; }
+    var di=column(['date','start date','start','日期','開始日期']), ti=column(['title','subject','summary','event','標題','主旨','活動']),
+        xi=column(['description','details','內容','說明']), li=column(['location','地點']), oi=column(['department','source','處室','來源']), timei=column(['time','start time','時間']);
+    if(di<0 || ti<0) throw new Error('CSV 必須包含日期與標題欄位');
+    return table.slice(1).map(function(row){ return normalizeSchoolEvent({date:row[di],title:row[ti],description:xi>=0?row[xi]:'',location:li>=0?row[li]:'',department:oi>=0?row[oi]:'',time:timei>=0?row[timei]:'',sourceUrl:sourceInfo&&sourceInfo.url,sourceLabel:sourceInfo&&sourceInfo.label},sourceInfo||{}); }).filter(Boolean).slice(0,SCHOOL_EVENT_MAX_COUNT);
+}
+function parseJsonEvents(text, sourceInfo) {
+    var value=typeof text==='string'?JSON.parse(text):text, rows=[];
+    if(Array.isArray(value)) rows=value;
+    else if(value && Array.isArray(value.events)) rows=value.events;
+    else if(value && typeof value==='object') Object.keys(value).forEach(function(date){ if(typeof value[date]==='string') rows.push({date:date,title:value[date]}); });
+    return rows.map(function(item){return normalizeSchoolEvent({date:item.date||item.startDate||item.start,title:item.title||item.summary||item.name,description:item.description||item.details,location:item.location&&item.location.name||item.location,department:item.department||item.source,time:item.time,uid:item.uid||item.id,sourceUrl:sourceInfo&&sourceInfo.url,sourceLabel:sourceInfo&&sourceInfo.label},sourceInfo||{});}).filter(Boolean).slice(0,SCHOOL_EVENT_MAX_COUNT);
+}
+function parseJsonLdEvents(html, sourceInfo) {
+    if(typeof DOMParser==='undefined') return [];
+    var doc=new DOMParser().parseFromString(String(html||''),'text/html'), found=[];
+    Array.from(doc.querySelectorAll('script[type="application/ld+json"]')).forEach(function(script){
+        try {
+            var root=JSON.parse(script.textContent||'null'), queue=Array.isArray(root)?root:[root];
+            queue.forEach(function(item){
+                var graph=item&&Array.isArray(item['@graph'])?item['@graph']:[item];
+                graph.forEach(function(node){
+                    var type=node&&node['@type'];
+                    if(type==='Event'||(Array.isArray(type)&&type.indexOf('Event')>=0)) {
+                        var event=normalizeSchoolEvent({date:node.startDate,title:node.name,description:node.description,location:node.location&&node.location.name||'',uid:node['@id']||node.url,sourceUrl:sourceInfo&&sourceInfo.url,sourceLabel:sourceInfo&&sourceInfo.label},sourceInfo||{});
+                        if(event) found.push(event);
+                    }
+                });
+            });
+        } catch(e) {}
+    });
+    return found.slice(0,SCHOOL_EVENT_MAX_COUNT);
+}
+function parsePublicCalendarText(text, sourceInfo, contentType, rangeStart, rangeEnd) {
+    var name=String(sourceInfo&&sourceInfo.name||sourceInfo&&sourceInfo.url||'').toLowerCase(), type=String(contentType||'').toLowerCase(), trimmed=String(text||'').trim();
+    function inRange(events){return (events||[]).filter(function(item){return(!rangeStart||item.date>=rangeStart)&&(!rangeEnd||item.date<=rangeEnd);}).slice(0,SCHOOL_EVENT_MAX_COUNT);}
+    if(trimmed.length>SCHOOL_EVENT_MAX_BYTES) throw new Error('公開檔案超過 5MB，請先下載後再縮小檔案');
+    if(/begin:vcalendar/i.test(trimmed)||/\.ics(?:$|[?#])/.test(name)||type.indexOf('text/calendar')>=0) return parseIcsEvents(trimmed,sourceInfo,rangeStart,rangeEnd);
+    if(/\.csv(?:$|[?#])/.test(name)||type.indexOf('text/csv')>=0) return inRange(parseCsvEvents(trimmed,sourceInfo));
+    if(trimmed[0]==='{'||trimmed[0]==='['||/\.json(?:$|[?#])/.test(name)||type.indexOf('json')>=0) return inRange(parseJsonEvents(trimmed,sourceInfo));
+    if(/<html|<!doctype/i.test(trimmed)||type.indexOf('text/html')>=0) return inRange(parseJsonLdEvents(trimmed,sourceInfo));
+    throw new Error('只支援公開 .ics、CSV、JSON 或含公開事件資料的網頁');
+}
+function decodeGoogleCalendarId(value) {
+    var text=decodeURIComponent(String(value||'').replace(/\+/g,'%20'));
+    if(text.indexOf('@')>=0) return text;
+    try { if(typeof atob==='function') return atob(text.replace(/-/g,'+').replace(/_/g,'/')); } catch(e) {}
+    return text;
+}
+function googleCalendarIcsUrl(calendarId) {
+    var id=decodeGoogleCalendarId(calendarId); if(!id) return '';
+    return 'https://calendar.google.com/calendar/ical/'+encodeURIComponent(id)+'/public/basic.ics';
+}
+function knownSchoolCalendarSources(websiteUrl) {
+    var url=normalizePublicUrl(websiteUrl); if(!url)return [];
+    try {
+        var host=new URL(url).hostname.toLowerCase();
+        if(host==='tcps.tc.edu.tw'||host.endsWith('.tcps.tc.edu.tw')) {
+            return [{
+                url:googleCalendarIcsUrl('6d3341c0268485919e7aef33f8326288de78791e7c4e9384a8aca25fb4197869@group.calendar.google.com'),
+                label:'大甲國小公開校務行事曆',name:'大甲國小公開校務行事曆.ics'
+            }];
+        }
+    } catch(e) {}
+    return [];
+}
+function detectPublicCalendarSources(html, pageUrl) {
+    var sourceText=String(html||'').replace(/&amp;/gi,'&'), candidates=[];
+    function add(url,label){ var normalized=normalizePublicUrl(url,pageUrl); if(!normalized)return; if(!candidates.some(function(c){return c.url===normalized;})) candidates.push({url:normalized,label:label||'公開行事曆',name:normalized}); }
+    var urls=[];
+    sourceText.replace(/(?:href|src)\s*=\s*["']([^"']+)["']/gi,function(_,url){urls.push(url);return _;});
+    sourceText.replace(/https?:\/\/[^\s"'<>]+/gi,function(url){urls.push(url.replace(/[),.;]+$/,''));return url;});
+    urls.forEach(function(raw,index){
+        var normalized=normalizePublicUrl(raw,pageUrl); if(!normalized)return;
+        try {
+            var parsed=new URL(normalized), host=parsed.hostname.toLowerCase();
+            if(host.indexOf('calendar.google.')>=0) {
+                var ids=parsed.searchParams.getAll('src');
+                var cid=parsed.searchParams.get('cid'); if(cid)ids.push(cid);
+                ids.forEach(function(id,idIndex){add(googleCalendarIcsUrl(id),'Google 公開行事曆 '+(idIndex+1));});
+            }
+            if(/\.(ics|ical|csv|json)(?:$|[?#])/i.test(parsed.pathname+parsed.search)) add(normalized,'公開行事曆 '+(index+1));
+        } catch(e) {}
+    });
+    return candidates.slice(0,50);
+}
+function mergeSchoolEventCandidates(storeValue, candidates, selectedIds, profilePatch) {
+    var store=normalizeSchoolEventStore(storeValue), selected={}; (selectedIds||[]).forEach(function(id){selected[id]=true;});
+    var excluded={}; store.excluded.forEach(function(item){excluded[item.id]=true;});
+    var byId={}; store.events.forEach(function(item){byId[item.id]=item;});
+    var added=0,updated=0,skipped=0;
+    (candidates||[]).forEach(function(raw){
+        var item=normalizeSchoolEvent(raw,{}); if(!item||!selected[item.id])return;
+        if(excluded[item.id]){skipped++;return;}
+        if(byId[item.id]){item.important=!!byId[item.id].important;updated++;}else added++;
+        byId[item.id]=item;
+    });
+    var events=Object.keys(byId).map(function(id){return byId[id];}).sort(function(a,b){return(a.date+a.time+a.title).localeCompare(b.date+b.time+b.title);}).slice(0,SCHOOL_EVENT_MAX_COUNT);
+    var profile=Object.assign({},store.profile,profilePatch||{}); profile.sourceUrls=Array.from(new Set((profile.sourceUrls||[]).map(function(url){return normalizePublicUrl(url);}).filter(Boolean))).slice(0,50);
+    return {store:normalizeSchoolEventStore({version:1,profile:profile,events:events,excluded:store.excluded}),added:added,updated:updated,skipped:skipped};
+}
+window.__limuV12Test = Object.assign(window.__limuV12Test || {}, {
+    normalizePublicUrl:normalizePublicUrl,
+    detectPublicCalendarSources:detectPublicCalendarSources,
+    knownSchoolCalendarSources:knownSchoolCalendarSources,
+    parseIcsEvents:parseIcsEvents,
+    parseCsvEvents:parseCsvEvents,
+    parseJsonEvents:parseJsonEvents,
+    normalizeSchoolEventStore:normalizeSchoolEventStore,
+    mergeSchoolEventCandidates:mergeSchoolEventCandidates
+});
 function secondaryPrefix(kind, classKey) {
     return 'offline:' + kind + ':' + encodeURIComponent(String(classKey || 'unassigned')) + ':';
 }
@@ -3249,7 +3672,15 @@ function setSyncRevision(key, meta) {
     try { _sl.set(SYNC_META_KEY, JSON.stringify(all)); } catch(e) {}
 }
 async function keepConflictCopy(key, localValue, remoteInfo, extra) {
-    var conflictKey = 'conflict:' + encodeURIComponent(key) + ':' + Date.now();
+    var conflictKey = '';
+    try {
+        var existingKeys = (await idbKeys()).filter(function(k){ return typeof k === 'string' && k.indexOf('conflict:') === 0; });
+        for (var i = 0; i < existingKeys.length; i++) {
+            var existing = parseStoredObject(await idbGet(existingKeys[i]), null);
+            if (existing && existing.status !== 'resolved' && existing.originalKey === key) { conflictKey = existingKeys[i]; break; }
+        }
+    } catch(eFind) {}
+    if (!conflictKey) conflictKey = 'conflict:' + encodeURIComponent(key) + ':' + Date.now();
     await idbSet(conflictKey, JSON.stringify(Object.assign({
         schemaVersion: APP_SCHEMA_VERSION,
         originalKey: key,
@@ -3292,6 +3723,17 @@ function conflictRecordSummary(conflict, side) {
     if (conflict.kind === 'gr') {
         return (value.date || '') + '　座號 ' + (value.studentSeats || []).join('、') + '　' + String(value.content || '').slice(0, 80);
     }
+    if (conflict.kind === 'settings') {
+        var label = conflict.settingsLabel || conflict.originalKey || '設定資料';
+        if (!value) return label + '：沒有資料';
+        if (conflict.settingsType === 'calendar') return label + '：' + Object.keys(value || {}).length + ' 筆行事曆事件';
+        if (conflict.settingsType === 'schoolEvents') return label + '：' + ((value.events && value.events.length) || 0) + ' 筆公開事件、' + ((value.excluded && value.excluded.length) || 0) + ' 筆排除';
+        if (conflict.settingsType === 'groups') return label + '：' + ((value.versions && value.versions.length) || 0) + ' 個組別版本';
+        if (conflict.settingsType === 'officers') {
+            return label + '：' + (((value['1'] || []).length) + ((value['2'] || []).length)) + ' 個幹部職務';
+        }
+        return label + '：' + [value.schoolYear, value.schoolName, value.className].filter(Boolean).join(' ');
+    }
     return String(conflict && conflict.originalKey || '').replace(/^.*(?:day|counsel):/, '') + ' 的每日資料';
 }
 function selectArchiveHistory(entries, currentMeta, maxArchives) {
@@ -3315,6 +3757,13 @@ function selectArchiveHistory(entries, currentMeta, maxArchives) {
     return unique.slice(0, Number(maxArchives || 3));
 }
 window.__limuV9Test = Object.assign(window.__limuV9Test || {}, { mergeWeeklyConflictRecords:mergeWeeklyConflictRecords, selectArchiveHistory:selectArchiveHistory });
+window.__limuV10Test = Object.assign(window.__limuV10Test || {}, {
+    readSettingsDirtyMap:readSettingsDirtyMap,
+    markSettingsDirty:markSettingsDirty,
+    clearSettingsDirty:clearSettingsDirty,
+    conflictRecordSummary:conflictRecordSummary,
+    syncRetryDelay:syncRetryDelay
+});
 function bytesToBase64(bytes) {
     var binary = '', chunk = 32768;
     for (var i = 0; i < bytes.length; i += chunk) {
@@ -3362,6 +3811,7 @@ async function decryptBackupPackage(container, password) {
     }
 }
 window.__limuV9Test = Object.assign(window.__limuV9Test || {}, { encryptBackupPackage:encryptBackupPackage, decryptBackupPackage:decryptBackupPackage });
+window.__limuV10Test = Object.assign(window.__limuV10Test || {}, { encryptBackupPackage:encryptBackupPackage, decryptBackupPackage:decryptBackupPackage });
 async function sha256Hex(text) {
     try {
         var bytes = new TextEncoder().encode(String(text));
@@ -3998,7 +4448,8 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
         classSize: parseInt(_sl.get('hw5ren:classSize') || '40', 10) || 40,
         semStart1: _sl.get('hw5ren:semStart1') || '',
         semStart2: _sl.get('hw5ren:semStart2') || '',
-        schoolCalendar: safeJSON(_sl.get('hw5ren:schoolCal') || '{}', {}),
+        schoolCalendar: safeJSON(_sl.get('hw5ren:schoolCal:' + activeClassId) || _sl.get('hw5ren:schoolCal') || '{}', {}),
+        schoolEvents: normalizeSchoolEventStore(safeJSON(_sl.get('hw5ren:schoolEvents:' + activeClassId) || '{}', {})),
         officerPresets: safeJSON(_sl.get('hw5ren:officerPresets') || '[]', []),
         slipPresets: safeJSON(_sl.get('hw5ren:slipPresets') || '[]', [])
       },
@@ -4202,6 +4653,8 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
     setSetting('hw5ren:semStart1', settings.semStart1);
     setSetting('hw5ren:semStart2', settings.semStart2);
     setSetting('hw5ren:schoolCal', settings.schoolCalendar);
+    if (settings.schoolCalendar) setSetting('hw5ren:schoolCal:' + targetClassKey, settings.schoolCalendar);
+    if (settings.schoolEvents) setSetting('hw5ren:schoolEvents:' + targetClassKey, normalizeSchoolEventStore(settings.schoolEvents));
     setSetting('hw5ren:officerPresets', settings.officerPresets);
     setSetting('hw5ren:slipPresets', settings.slipPresets);
     if (Array.isArray(settings.groups)) _sl.set('hw5ren:groups:' + targetClassKey, JSON.stringify(settings.groups));
@@ -4211,7 +4664,11 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
     if (snapshot.officers && (overwrite || !_sl.get('hw5ren:officers:' + targetClassKey))) {
       _sl.set('hw5ren:officers:' + targetClassKey, JSON.stringify(snapshot.officers));
     }
-    _sl.set('hw5ren:settingsDirty', '1');
+    markSettingsDirty('settings:main', '班級設定');
+    markSettingsDirty('groupVersions:' + targetClassKey, '組別版本');
+    markSettingsDirty('officers:' + targetClassKey, '幹部資料');
+    markSettingsDirty('schoolCalendar:' + targetClassKey, '學校行事曆');
+    if (settings.schoolEvents) markSettingsDirty('schoolEvents:' + targetClassKey, '公開學校行事曆');
     return { added:added, skipped:skipped, counselAdded:counselAdded, plans:plans.length, guidance:records.length };
   }
 
@@ -4565,15 +5022,78 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
   );
 }
 
-function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, saveSettingsAtomic, className, setClassName, schoolName, setSchoolName, schoolYear, setSchoolYear, semStart1, setSemStart1, semStart2, setSemStart2, classSize, setClassSize, officers, saveOfficers, officerPresets, setOfficerPresets, onClose, isNerv, idbKeys, idbGet, idbDelete, openDB, DB_STORE, classes, addClass, firebaseUid }) {
+function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, saveSettingsAtomic, className, setClassName, schoolName, setSchoolName, schoolYear, setSchoolYear, semStart1, setSemStart1, semStart2, setSemStart2, classSize, setClassSize, officers, saveOfficers, officerPresets, setOfficerPresets, onClose, isNerv, idbKeys, idbGet, idbDelete, openDB, DB_STORE, classes, addClass, firebaseUid, checkCurrentArchive, startSchoolYearTransition, onOpenArchive }) {
     var [showAddClass, setShowAddClass] = React.useState(false);
     var [newYear, setNewYear] = React.useState(String(new Date().getFullYear()));
     var [newSchool, setNewSchool] = React.useState("");
     var [newClass, setNewClass] = React.useState("");
     var [pendingGroupTab, setPendingGroupTab] = React.useState(false);
+    function suggestedTransitionYear() {
+        return nextAcademicSchoolYear(schoolYear);
+    }
+    var transitionDefaultYear = suggestedTransitionYear();
+    var [showYearTransition, setShowYearTransition] = React.useState(false);
+    var [transitionArchiveReady, setTransitionArchiveReady] = React.useState(false);
+    var [transitionChecking, setTransitionChecking] = React.useState(false);
+    var [transitionBusy, setTransitionBusy] = React.useState(false);
+    var [transitionMsg, setTransitionMsg] = React.useState('');
+    var [transitionForm, setTransitionForm] = React.useState({
+        year:transitionDefaultYear,
+        schoolName:schoolName || '',
+        className:'',
+        classSize:classSize || 40,
+        semStart1:transitionDefaultYear + '-09-01',
+        semStart2:String(parseInt(transitionDefaultYear,10) + 1) + '-02-01',
+        copyGroupNames:true,
+        copyOfficerRoles:true,
+        calendarText:''
+    });
+    async function openYearTransitionWizard() {
+        var target = suggestedTransitionYear();
+        setTransitionForm(function(prev){ return Object.assign({}, prev, {
+            year:target, schoolName:schoolName || '', classSize:classSize || 40,
+            semStart1:target + '-09-01', semStart2:String(parseInt(target,10) + 1) + '-02-01'
+        }); });
+        setShowYearTransition(true); setTransitionChecking(true); setTransitionMsg('');
+        try { setTransitionArchiveReady(await checkCurrentArchive()); }
+        catch(e) { setTransitionArchiveReady(false); }
+        setTransitionChecking(false);
+    }
+    async function submitYearTransition() {
+        if (transitionBusy) return;
+        setTransitionBusy(true); setTransitionMsg('');
+        try {
+            var calendar = {};
+            if (String(transitionForm.calendarText || '').trim()) {
+                calendar = JSON.parse(transitionForm.calendarText.trim());
+                if (!calendar || typeof calendar !== 'object' || Array.isArray(calendar)) throw new Error('行事曆必須是 JSON 物件');
+                Object.keys(calendar).forEach(function(ds){
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(ds) || typeof calendar[ds] !== 'string') throw new Error('行事曆日期必須為 YYYY-MM-DD，內容必須是文字');
+                });
+            }
+            var result = await startSchoolYearTransition(Object.assign({}, transitionForm, { calendar:calendar }));
+            if (!result || !result.ok) {
+                if (result && result.needsArchive) setTransitionArchiveReady(false);
+                setTransitionMsg((result && result.message) || '轉換尚未完成');
+                setTransitionBusy(false);
+                return;
+            }
+            setTransitionBusy(false); setShowYearTransition(false);
+            alert('✅ 已建立 ' + result.rocYear + ' 學年度新班級\n學生座號與幹部人選未沿用，請重新指派。');
+            onClose();
+        } catch(e) {
+            setTransitionMsg('❌ ' + String((e && e.message) || e));
+            setTransitionBusy(false);
+        }
+    }
     function handleAddClass() {
         if (!newYear.trim() || !newClass.trim()) { alert("請填寫學年度和班級名稱"); return; }
-        addClass({ year: newYear.trim(), school: newSchool.trim(), className: newClass.trim() });
+        var added = addClass({ year: newYear.trim(), school: newSchool.trim(), className: newClass.trim() });
+        if (added && added.duplicate) {
+            setShowAddClass(false);
+            alert("ℹ️ 相同學年度與班級已存在，已切換到原有班級。");
+            return;
+        }
         setShowAddClass(false);
         setNewYear(String(new Date().getFullYear()));
         setNewSchool(""); setNewClass("");
@@ -4818,6 +5338,9 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
     const inp = nerv
         ? { width: "100%", padding: "8px 10px", background: "rgba(255,102,0,.06)", border: "1px solid rgba(255,102,0,.4)", color: "#ff8844", borderRadius: 2, fontSize: 14, fontFamily: "Share Tech Mono,monospace", boxSizing: "border-box" }
         : { width: "100%", padding: "8px 12px", border: "2px solid #dde5ee", borderRadius: 10, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" };
+    var transitionDuplicate = findExistingSchoolYearTransition(
+        classes, currentClassKey(), transitionForm.year, transitionForm.schoolName, transitionForm.className
+    );
     return (React.createElement("main", { style: { padding: 12, overflowY: "auto", flex: 1 } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 16 } },
             React.createElement("button", { onClick: onClose, style: { background: nerv ? "rgba(255,102,0,.1)" : "rgba(30,58,95,.1)", border: "none", color: nerv ? "#ff6600" : "#1e3a5f", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 } }, nerv ? "\u25C4 RETURN" : "\u2190 \u8FD4\u56DE"),
@@ -4867,6 +5390,13 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                     React.createElement("label", { style: lbl }, nerv ? "// CLASS NAME //" : "\u73ED\u7D1A\u540D\u7A31"),
                     React.createElement("input", { style: Object.assign({}, inp, { marginBottom: 14 }), value: newClass, onChange: e => setNewClass(e.target.value), placeholder: "\u4F8B\uFF1A\u516D\u5E74\u7532\u73ED", maxLength: 20 }),
                     React.createElement("button", { onClick: handleAddClass, style: { width:"100%", padding:"10px", border:"none", borderRadius:10, cursor:"pointer", background: nerv?"#ff6600":"#1e3a5f", color:"#fff", fontWeight:700, fontSize:14, opacity: (!newYear.trim()||!newClass.trim()) ? 0.5 : 1 } }, nerv ? "\u25B6 DEPLOY NEW UNIT" : "\u2705 \u65B0\u589E\u4E26\u5207\u63DB\u5230\u6B64\u73ED\u7D1A"))),
+            React.createElement("div", { style: Object.assign({}, panel, { background:nerv?"rgba(255,102,0,.05)":"#eef8f1", border:nerv?"1px solid rgba(255,102,0,.35)":"1px solid #b7dfc2" }) },
+                React.createElement("div", { style:{fontSize:15,fontWeight:900,color:nerv?"#ffaa44":"#246b3a",marginBottom:6} },
+                    "🎓 " + (parseInt(transitionDefaultYear,10) - 1911) + " 學年度轉換助手"),
+                React.createElement("p", { style:{fontSize:12,lineHeight:1.6,color:nerv?"rgba(255,160,90,.7)":"#5f7d68",marginBottom:12} },
+                    "目標固定為目前班級的下一學年度；先確認舊學年已完整封存，再建立新班級。"),
+                React.createElement("button", { type:"button", onClick:openYearTransitionWizard, style:{width:"100%",padding:"11px",border:"none",borderRadius:10,background:nerv?"#ff6600":"#2e7d45",color:"#fff",fontSize:14,fontWeight:800,cursor:"pointer"} },
+                    "開始學年度轉換")),
             React.createElement("div", { style: { background: nerv ? "rgba(255,102,0,.06)" : "#f0f7ff", borderRadius: nerv ? 4 : 14, padding: "16px", marginBottom: 16 } },
                 React.createElement("div", { style: { fontSize: 14, fontWeight: 800, color: nerv ? "#ff8844" : "#1e3a5f", marginBottom: 12 } }, nerv ? "// SEMESTER DATES //" : "\uD83D\uDCC5 \u5B78\u671F\u958B\u59CB\u65E5\u671F"),
                 React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap" } },
@@ -5016,7 +5546,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                             return React.createElement("div", { key:oi, style:{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:(nerv?"rgba(255,102,0,.04)":"#faf5fc"), borderRadius:10, border:"1px solid #f0e6fa" } },
                                 React.createElement("div", { style:{ display:"flex", alignItems:"center", gap:10 } },
                                     React.createElement("span", { style:{ fontWeight:800, fontSize:14, color:(nerv?"#ff8844":"#1e3a5f") } }, off.role),
-                                    React.createElement("span", { style:{ fontSize:13, color:"#666" } }, off.seat+"\u865F")),
+                                    React.createElement("span", { style:{ fontSize:13, color:"#666" } }, off.seat ? off.seat+"\u865F" : "待指派")),
                                 React.createElement("button", { onClick:function(){
                                         var next = JSON.parse(JSON.stringify(officers));
                                         next[officerSem] = next[officerSem].filter(function(_,i){ return i!==oi; });
@@ -5080,6 +5610,56 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                             } }, "\u78BA\u8A8D\u65B0\u589E")))
             )
         ),
+        React.createElement("div", { style:{padding:"10px 12px",margin:"4px 0 18px",borderRadius:10,textAlign:"center",fontSize:11,lineHeight:1.7,color:nerv?"rgba(255,136,68,.65)":"#8291a3",background:nerv?"rgba(255,102,0,.04)":"rgba(30,58,95,.04)"} },
+            "LIMU v" + APP_VERSION + "　建置 " + APP_BUILD_DATE,
+            React.createElement("br"),
+            "快取 " + APP_CACHE_NAME + "　資料格式 v" + APP_SCHEMA_VERSION),
+        showYearTransition && React.createElement("div", {
+            role:"dialog", "aria-modal":"true", "aria-label":"學年度轉換助手",
+            onClick:function(e){ if(e.target===e.currentTarget && !transitionBusy) setShowYearTransition(false); },
+            style:{position:"fixed",inset:0,zIndex:9600,background:"rgba(0,0,0,.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}
+        }, React.createElement("div", { style:{width:"100%",maxWidth:520,maxHeight:"88vh",overflowY:"auto",background:nerv?"#120400":"#fff",borderRadius:18,padding:20,boxShadow:"0 20px 60px rgba(0,0,0,.45)"} },
+            React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8,marginBottom:14} },
+                React.createElement("div", { style:{fontSize:18,fontWeight:900,color:nerv?"#ff8844":"#1e3a5f",flex:1} },
+                    "🎓 " + (parseInt(transitionForm.year,10) - 1911) + " 學年度轉換助手"),
+                React.createElement("button", { type:"button", disabled:transitionBusy, onClick:function(){setShowYearTransition(false);}, style:{border:"none",background:"transparent",fontSize:22,color:nerv?"#ff8844":"#1e3a5f",cursor:"pointer"}, "aria-label":"關閉學年度轉換助手" }, "×")),
+            React.createElement("div", { style:{padding:12,borderRadius:10,marginBottom:14,background:transitionArchiveReady?(nerv?"rgba(0,200,90,.08)":"#e8f5e9"):(nerv?"rgba(255,80,0,.08)":"#fff3e0"),color:transitionArchiveReady?(nerv?"#66ff99":"#2e7d32"):(nerv?"#ffaa44":"#e65100"),fontSize:12,fontWeight:700,lineHeight:1.55} },
+                transitionChecking ? "正在確認目前學年度封存…" : transitionArchiveReady ? "✓ 已確認目前學年度有完整封存，可安全建立新班級。" : "⚠ 請先完成目前學年度的完整封存，再繼續轉換。",
+                !transitionChecking && !transitionArchiveReady && React.createElement("button", { type:"button", onClick:function(){setShowYearTransition(false);onOpenArchive();}, style:{display:"block",marginTop:8,padding:"8px 12px",border:"none",borderRadius:8,background:"#ef6c00",color:"#fff",fontWeight:800,cursor:"pointer"} }, "前往完整封存")),
+            React.createElement("div", { style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10} },
+                React.createElement("div", null,
+                    React.createElement("label", { style:lbl }, "新學年度（自動鎖定）"),
+                    React.createElement("input", { type:"number", readOnly:true, "aria-readonly":"true", style:Object.assign({},inp,{background:nerv?"rgba(255,102,0,.025)":"#f1f4f7",fontWeight:800}), value:transitionForm.year })),
+                React.createElement("div", null,
+                    React.createElement("label", { style:lbl }, "新班級人數"),
+                    React.createElement("input", { type:"number", min:1, max:60, style:inp, value:transitionForm.classSize, onChange:function(e){setTransitionForm(function(p){return Object.assign({},p,{classSize:e.target.value});});} }))),
+            React.createElement("label", { style:Object.assign({},lbl,{marginTop:10}) }, "學校名稱"),
+            React.createElement("input", { style:inp, value:transitionForm.schoolName, onChange:function(e){setTransitionForm(function(p){return Object.assign({},p,{schoolName:e.target.value});});} }),
+            React.createElement("label", { style:Object.assign({},lbl,{marginTop:10}) }, "新班級名稱"),
+            React.createElement("input", { style:inp, value:transitionForm.className, placeholder:"例如：六年甲班", onChange:function(e){setTransitionForm(function(p){return Object.assign({},p,{className:e.target.value});});} }),
+            React.createElement("p", { style:{fontSize:12,lineHeight:1.55,margin:"8px 0 0",color:nerv?"#ffaa44":"#5d7188"} },
+                "目前 " + (parseInt(schoolYear,10) - 1911) + " 學年度 → 新 " + (parseInt(transitionForm.year,10) - 1911) + " 學年度；同一來源班級不能重複建立。"),
+            React.createElement("div", { style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10} },
+                React.createElement("div", null,
+                    React.createElement("label", { style:lbl }, "上學期開學日"),
+                    React.createElement("input", { type:"date", style:inp, value:transitionForm.semStart1, onChange:function(e){setTransitionForm(function(p){return Object.assign({},p,{semStart1:e.target.value});});} })),
+                React.createElement("div", null,
+                    React.createElement("label", { style:lbl }, "下學期開始日"),
+                    React.createElement("input", { type:"date", style:inp, value:transitionForm.semStart2, onChange:function(e){setTransitionForm(function(p){return Object.assign({},p,{semStart2:e.target.value});});} }))),
+            React.createElement("div", { style:{display:"flex",flexDirection:"column",gap:8,marginTop:14,padding:12,borderRadius:10,background:nerv?"rgba(255,102,0,.05)":"#f5f8fc"} },
+                React.createElement("label", { style:{fontSize:13,fontWeight:700,color:nerv?"#ff8844":"#1e3a5f"} },
+                    React.createElement("input", { type:"checkbox", checked:transitionForm.copyGroupNames, onChange:function(e){var v=e.target.checked;setTransitionForm(function(p){return Object.assign({},p,{copyGroupNames:v});});} }), " 複製組別名稱（不複製學生座號）"),
+                React.createElement("label", { style:{fontSize:13,fontWeight:700,color:nerv?"#ff8844":"#1e3a5f"} },
+                    React.createElement("input", { type:"checkbox", checked:transitionForm.copyOfficerRoles, onChange:function(e){var v=e.target.checked;setTransitionForm(function(p){return Object.assign({},p,{copyOfficerRoles:v});});} }), " 複製幹部職稱（不複製幹部人選）")),
+            React.createElement("label", { style:Object.assign({},lbl,{marginTop:14}) }, "新學年度行事曆 JSON（可稍後匯入）"),
+            React.createElement("textarea", { style:Object.assign({},inp,{height:90,resize:"vertical",fontFamily:"monospace"}), value:transitionForm.calendarText, placeholder:'{"2026-09-01":"🏫 開學日"}', onChange:function(e){setTransitionForm(function(p){return Object.assign({},p,{calendarText:e.target.value});});} }),
+            transitionDuplicate && React.createElement("p", { style:{fontSize:12,color:"#c62828",marginTop:10,fontWeight:800,lineHeight:1.5} },
+                "⚠ " + (parseInt(transitionForm.year,10) - 1911) + " 學年度的對應班級已存在（" + (transitionDuplicate.className || "未命名班級") + "），不會重複建立。"),
+            transitionMsg && React.createElement("p", { style:{fontSize:12,color:transitionMsg.indexOf("❌")===0?"#e53935":"#e65100",marginTop:10,fontWeight:700} }, transitionMsg),
+            React.createElement("div", { style:{display:"flex",gap:10,marginTop:16} },
+                React.createElement("button", { type:"button", disabled:transitionBusy, onClick:function(){setShowYearTransition(false);}, style:{flex:1,padding:11,border:"1px solid #d7e0ea",borderRadius:10,background:"#fff",color:"#607080",fontWeight:800,cursor:"pointer"} }, "取消"),
+                React.createElement("button", { type:"button", disabled:transitionBusy||transitionChecking||!transitionArchiveReady||!!transitionDuplicate||!String(transitionForm.className||"").trim()||!transitionForm.semStart1, onClick:submitYearTransition, style:{flex:2,padding:11,border:"none",borderRadius:10,background:(transitionArchiveReady&&!transitionBusy&&!transitionDuplicate)?"#2e7d45":"#aab5ae",color:"#fff",fontWeight:900,cursor:(transitionArchiveReady&&!transitionDuplicate)?"pointer":"not-allowed"} }, transitionBusy?"建立中…":"建立新學年度班級"))
+        )),
         clearModal && (React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 } },
             React.createElement("div", { style: { background: nerv ? "#0a0100" : "#fff", border: nerv ? "2px solid #ff0000" : "none", borderRadius: nerv ? 4 : 20, padding: 28, width: 320, maxWidth: "92vw", boxShadow: "0 20px 60px rgba(0,0,0,.4)" } },
                 React.createElement("div", { style: { fontSize: 16, fontWeight: 900, color: "#e53935", marginBottom: 8 } }, nerv ? "⚠ CONFIRM DATA PURGE" : "⚠️ 確認清除"),
@@ -5194,12 +5774,16 @@ function App() {
         }
         saveSettingsToFirebase(undefined, undefined, undefined, undefined, current ? current.groups : undefined, undefined, undefined, undefined);
         // 版本陣列本身也同步到 Firebase（獨立 key，避免 settings:main 過於肥大）
-        if (cid) saveGroupVersionsToFirebase(versions, cid);
+        if (cid) {
+            markSettingsDirty('groupVersions:' + cid, '組別版本');
+            saveGroupVersionsToFirebase(versions, cid);
+        }
     }
     async function saveGroupVersionsToFirebase(versions, classId) {
         if (!firebaseUid || !classId) return;
-        try { await window.fsSet(firebaseUid, 'groupVersions:' + classId, { versions: versions }); setDriveError(''); }
-        catch(e) { _sl.set('hw5ren:settingsDirty','1'); setDriveStatus('error'); setDriveError(String((e && e.message) || e).slice(0,80)); }
+        var key = 'groupVersions:' + classId;
+        markSettingsDirty(key, '組別版本');
+        return saveGuardedSettingsDocument(key, { versions:versions }, '組別版本', 'groups');
     }
     const [className, setClassName] = useState(() => safeGet("hw5ren:className") || "");
     const [schoolName, setSchoolName] = useState(() => safeGet("hw5ren:school") || "");
@@ -5221,7 +5805,9 @@ function App() {
     // 學校行事曆
     const [schoolCalendar, setSchoolCalendar] = useState(() => {
         try {
-            var saved = safeGet("hw5ren:schoolCal");
+            var calendarClassId = safeGet("hw5ren:activeClass") || "";
+            var saved = calendarClassId ? safeGet("hw5ren:schoolCal:" + calendarClassId) : null;
+            if (!saved) saved = safeGet("hw5ren:schoolCal");
             var resetToBuiltIn = safeGet("hw5ren:resetSchoolCal") === "1";
             var parsedCalendar = saved ? JSON.parse(saved) : null;
             return parsedCalendar && typeof parsedCalendar === "object" && !Array.isArray(parsedCalendar) && !resetToBuiltIn ? parsedCalendar : {"2025-08-29":"\u958b\u5b78\u6e96\u5099","2025-09-01":"\ud83c\udfeb \u958b\u5b78\u65e5","2025-09-28":"\u6559\u5e2b\u7bc0","2025-09-29":"\ud83d\udd34 \u6559\u5e2b\u7bc0\u88dc\u5047","2025-10-06":"\ud83d\udd34 \u4e2d\u79cb\u7bc0","2025-10-10":"\ud83d\udd34 \u570b\u6176\u65e5","2025-10-24":"\ud83d\udd34 \u5149\u5fa9\u7bc0\u88dc\u5047","2025-10-25":"\u5149\u5fa9\u7bc0","2025-11-06":"\ud83d\udcdd \u7b2c\u4e00\u6b21\u5b9a\u671f\u8a55\u91cf","2025-11-07":"\ud83d\udcdd \u7b2c\u4e00\u6b21\u5b9a\u671f\u8a55\u91cf","2025-11-08":"\u81fa\u7063\u79d1\u5b78\u7bc0","2025-11-22":"\ud83c\udfc3 \u904b\u52d5\u6703","2025-11-24":"\ud83d\udd34 \u904b\u52d5\u6703\u88dc\u5047","2025-12-25":"\ud83d\udd34 \u884c\u618c\u7d00\u5ff5\u65e5","2026-01-01":"\ud83d\udd34 \u958b\u570b\u7d00\u5ff5\u65e5","2026-01-13":"\ud83d\udcdd \u7b2c\u4e8c\u6b21\u5b9a\u671f\u8a55\u91cf","2026-01-14":"\ud83d\udcdd \u7b2c\u4e8c\u6b21\u5b9a\u671f\u8a55\u91cf","2026-01-20":"\ud83c\udfc1 \u7b2c\u4e00\u5b78\u671f\u4f11\u696d\u5f0f","2026-01-21":"\u88dc\u8ab22/11\u88dc","2026-01-22":"\u88dc\u8ab22/12\u88dc","2026-01-23":"\u88dc\u8ab22/13\u88dc","2026-02-10":"\u5bd2\u5047\u7d50\u675f","2026-02-11":"\ud83d\udd34 \u8abf\u6574\u653e\u5047","2026-02-12":"\ud83d\udd34 \u8abf\u6574\u653e\u5047","2026-02-13":"\ud83d\udd34 \u8abf\u6574\u653e\u5047","2026-02-16":"\ud83d\udd34 \u9664\u5915","2026-02-17":"\ud83d\udd34 \u6625\u7bc0","2026-02-18":"\ud83d\udd34 \u6625\u7bc0","2026-02-19":"\ud83d\udd34 \u6625\u7bc0","2026-02-20":"\ud83d\udd34 \u6625\u7bc0","2026-02-23":"\u5be6\u969b\u958b\u59cb\u4e0a\u8ab2","2026-02-27":"\ud83d\udd34 \u548c\u5e73\u7d00\u5ff5\u65e5\u88dc\u5047","2026-02-28":"\u548c\u5e73\u7d00\u5ff5\u65e5","2026-04-03":"\ud83d\udd34 \u5150\u7ae5\u7bc0\u88dc\u5047","2026-04-04":"\u5150\u7ae5\u7bc0","2026-04-05":"\u6e05\u660e\u7bc0","2026-04-06":"\ud83d\udd34 \u6e05\u660e\u7bc0\u88dc\u5047","2026-04-23":"\ud83d\udcdd \u7b2c\u4e00\u6b21\u5b9a\u671f\u8a55\u91cf","2026-04-24":"\ud83d\udcdd \u7b2c\u4e00\u6b21\u5b9a\u671f\u8a55\u91cf","2026-05-01":"\ud83d\udd34 \u52de\u52d5\u65e5","2026-06-02":"\ud83d\udcdd \u516d\u5e74\u7d1a\u7562\u696d\u8a55\u91cf","2026-06-03":"\ud83d\udcdd \u516d\u5e74\u7d1a\u7562\u696d\u8a55\u91cf","2026-06-11":"\ud83c\udf93 \u7562\u696d\u5178\u79ae","2026-06-19":"\ud83d\udd34 \u7aef\u5348\u7bc0","2026-06-23":"\ud83d\udcdd \u7b2c\u4e8c\u6b21\u5b9a\u671f\u8a55\u91cf","2026-06-24":"\ud83d\udcdd \u7b2c\u4e8c\u6b21\u5b9a\u671f\u8a55\u91cf","2026-06-30":"\ud83c\udfc1 \u4f11\u696d\u5f0f","2026-07-01":"\u2600\ufe0f \u6691\u5047\u958b\u59cb"};
@@ -5232,15 +5818,65 @@ function App() {
         var normalized = cal && typeof cal === "object" && !Array.isArray(cal) ? cal : {};
         setSchoolCalendar(normalized);
         safeSet("hw5ren:schoolCal", JSON.stringify(normalized));
+        var calendarClassId = _sl.get("hw5ren:activeClass") || activeClassId;
+        if (calendarClassId) safeSet("hw5ren:schoolCal:" + calendarClassId, JSON.stringify(normalized));
         var info = calendarProfileInfo(normalized);
         if (info.rocYear) safeSet('hw5ren:schoolCalYear', String(info.rocYear));
         safeRemove("hw5ren:resetSchoolCal");
-        saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, normalized);
+        if (calendarClassId) {
+            var calendarKey = 'schoolCalendar:' + calendarClassId;
+            markSettingsDirty(calendarKey, '學校行事曆');
+            if (firebaseUid) saveGuardedSettingsDocument(calendarKey, normalized, '學校行事曆', 'calendar');
+        }
+        try { scheduleAutoSync(); } catch(eSync) {}
     }
     function deleteCalEvent(dateStr) {
         var next = Object.assign({}, schoolCalendar || {});
         delete next[dateStr];
         saveSchoolCalendar(next);
+    }
+
+    // v12：公開來源事件使用獨立文件，不改寫既有「一天一段文字」行事曆。
+    const [schoolEventStore, setSchoolEventStore] = useState(function(){
+        try {
+            var cid = safeGet('hw5ren:activeClass') || 'unassigned';
+            return normalizeSchoolEventStore(safeJSON(safeGet('hw5ren:schoolEvents:' + cid) || '{}', {}));
+        } catch(e) { return normalizeSchoolEventStore({}); }
+    });
+    const [schoolEventFocusImportant, setSchoolEventFocusImportant] = useState(false);
+    const [expandedSchoolEvents, setExpandedSchoolEvents] = useState({});
+    function saveSchoolEventStore(nextValue) {
+        var normalized = normalizeSchoolEventStore(nextValue), cid = _sl.get('hw5ren:activeClass') || activeClassId || 'unassigned';
+        setSchoolEventStore(normalized);
+        safeSet('hw5ren:schoolEvents:' + cid, JSON.stringify(normalized));
+        if (cid !== 'unassigned') {
+            var key = 'schoolEvents:' + cid;
+            markSettingsDirty(key, '公開學校行事曆');
+            if (firebaseUid) saveGuardedSettingsDocument(key, normalized, '公開學校行事曆', 'schoolEvents');
+        }
+        try { scheduleAutoSync(); } catch(eSync) {}
+        return normalized;
+    }
+    function toggleSchoolEventImportant(eventId) {
+        var next = normalizeSchoolEventStore(schoolEventStore);
+        next.events = next.events.map(function(item){ return item.id === eventId ? Object.assign({}, item, { important:!item.important, updatedAt:new Date().toISOString() }) : item; });
+        saveSchoolEventStore(next);
+    }
+    function excludeSchoolEvent(eventId) {
+        var next = normalizeSchoolEventStore(schoolEventStore), target = next.events.find(function(item){return item.id===eventId;});
+        if (!target) return;
+        next.events = next.events.filter(function(item){return item.id!==eventId;});
+        next.excluded = next.excluded.filter(function(item){return item.id!==eventId;});
+        next.excluded.push(Object.assign({}, target, { excludedAt:new Date().toISOString() }));
+        saveSchoolEventStore(next);
+    }
+    function restoreExcludedSchoolEvent(eventId) {
+        var next = normalizeSchoolEventStore(schoolEventStore), target = next.excluded.find(function(item){return item.id===eventId;});
+        if (!target) return;
+        next.excluded = next.excluded.filter(function(item){return item.id!==eventId;});
+        next.events = next.events.filter(function(item){return item.id!==eventId;});
+        next.events.push(Object.assign({}, target, { excludedAt:undefined, updatedAt:new Date().toISOString() }));
+        saveSchoolEventStore(next);
     }
 
     // ── 多班級管理 ────────────────────────────────────────────────
@@ -5274,39 +5910,122 @@ function App() {
     const [activeClassId, setActiveClassId] = useState(() => safeGet("hw5ren:activeClass") || "");
     const [showClassDropdown, setShowClassDropdown] = useState(false);
 
-    // 儲存 classes
-    async function saveSettingsToFirebase(cn, sn, sy, cls, grp, cs, ss1, ss2, cal) {
-        _sl.set('hw5ren:settingsDirty', '1');
-        if (!firebaseUid) return false;
+    function buildSettingsMainValue(cn, sn, sy, cls, grp, cs, ss1, ss2, cal) {
+        var localActiveClass = _sl.get('hw5ren:activeClass') || activeClassId;
+        return {
+            className:  cn  !== undefined ? cn  : (_sl.get('hw5ren:className') || className),
+            schoolName: sn  !== undefined ? sn  : (_sl.get('hw5ren:school') || schoolName),
+            schoolYear: sy  !== undefined ? sy  : (_sl.get('hw5ren:year') || schoolYear),
+            classes:    cls !== undefined ? cls : safeJSON(_sl.get('hw5ren:classes') || '[]', classes),
+            groups:     grp !== undefined ? grp : safeJSON(_sl.get('hw5ren:groups') || '[]', groups),
+            classSize:  cs  !== undefined ? cs  : (parseInt(_sl.get('hw5ren:classSize') || '',10) || classSize),
+            semStart1:  ss1 !== undefined ? ss1 : (_sl.get('hw5ren:semStart1') || semStart1),
+            semStart2:  ss2 !== undefined ? ss2 : (_sl.get('hw5ren:semStart2') || semStart2),
+            schoolCalendar: cal !== undefined ? cal : safeJSON((localActiveClass && _sl.get('hw5ren:schoolCal:' + localActiveClass)) || _sl.get('hw5ren:schoolCal') || '{}', schoolCalendar),
+            appVersion: APP_VERSION,
+            updatedAt: new Date().toISOString()
+        };
+    }
+
+    async function saveGuardedSettingsDocument(key, value, label, type) {
+        if (!firebaseUid || !key) return false;
         try {
-            await window.fsSet(firebaseUid, 'settings:main', {
-                className:  cn  !== undefined ? cn  : className,
-                schoolName: sn  !== undefined ? sn  : schoolName,
-                schoolYear: sy  !== undefined ? sy  : schoolYear,
-                classes:    cls !== undefined ? cls : classes,
-                groups:     grp !== undefined ? grp : groups,
-                classSize:  cs  !== undefined ? cs  : classSize,
-                semStart1:  ss1 !== undefined ? ss1 : semStart1,
-                semStart2:  ss2 !== undefined ? ss2 : semStart2,
-                schoolCalendar: cal !== undefined ? cal : schoolCalendar,
-                updatedAt:  new Date().toISOString()
-            });
-            setDriveError('');
-            _sl.remove('hw5ren:settingsDirty');
-            return true;
+            var expectedRevision = getSyncRevision(key);
+            if ((expectedRevision === null || expectedRevision === undefined) && isSettingDirty(key)) expectedRevision = -1;
+            var result = await window.fsSetGuarded(firebaseUid, key, value, expectedRevision, false);
+            if (result && result.conflict) {
+                await keepConflictCopy(key, value, result, {
+                    kind:'settings',
+                    settingsLabel:label || key,
+                    settingsType:type || 'main',
+                    classKey:currentClassKey(),
+                    recordId:key
+                });
+                try { window.dispatchEvent(new CustomEvent('limu-conflict-change')); } catch(exEvent) {}
+                setDriveStatus('error');
+                setDriveError((label || '設定') + '偵測到跨裝置衝突，兩個版本都已保留');
+                return { ok:false, conflict:true };
+            }
+            if (result && result.ok) {
+                setSyncRevision(key, result);
+                clearSettingsDirty([key]);
+                setDriveError('');
+                return { ok:true, conflict:false };
+            }
+            return { ok:false, failed:true };
         } catch(e) {
             setDriveStatus('error');
             setDriveError(String((e && e.message) || e).slice(0, 80));
-            return false;
+            try { scheduleRetrySync('設定同步失敗'); } catch(exRetry) {}
+            return { ok:false, failed:true };
         }
+    }
+
+    function applySettingsDocument(key, value) {
+        if (!key || !value || typeof value !== 'object') return;
+        if (key === 'settings:main') {
+            if (value.className !== undefined) { setClassName(value.className || ''); _sl.set('hw5ren:className', value.className || ''); }
+            if (value.schoolName !== undefined) { setSchoolName(value.schoolName || ''); _sl.set('hw5ren:school', value.schoolName || ''); }
+            if (value.schoolYear !== undefined) { setSchoolYear(String(value.schoolYear || '')); _sl.set('hw5ren:year', String(value.schoolYear || '')); }
+            if (Array.isArray(value.classes)) { setClasses(value.classes); _sl.set('hw5ren:classes', JSON.stringify(value.classes)); }
+            if (Array.isArray(value.groups)) {
+                setGroups(value.groups); _sl.set('hw5ren:groups', JSON.stringify(value.groups));
+                var mainCid = _sl.get('hw5ren:activeClass') || activeClassId;
+                if (mainCid) _sl.set('hw5ren:groups:' + mainCid, JSON.stringify(value.groups));
+            }
+            if (value.classSize !== undefined) { setClassSize(parseInt(value.classSize,10) || 40); _sl.set('hw5ren:classSize', String(parseInt(value.classSize,10) || 40)); }
+            if (value.semStart1 !== undefined) { setSemStart1(value.semStart1 || ''); _sl.set('hw5ren:semStart1', value.semStart1 || ''); }
+            if (value.semStart2 !== undefined) { setSemStart2(value.semStart2 || ''); _sl.set('hw5ren:semStart2', value.semStart2 || ''); }
+            return;
+        }
+        if (key.indexOf('groupVersions:') === 0) {
+            var groupCid = key.slice('groupVersions:'.length);
+            var versions = Array.isArray(value.versions) ? value.versions : [];
+            _sl.set('hw5ren:groupVersions:' + groupCid, JSON.stringify(versions));
+            if (groupCid === (_sl.get('hw5ren:activeClass') || activeClassId)) {
+                setGroupVersions(versions);
+                var sorted = versions.slice().sort(function(a,b){ return String(b.effectiveDate || '').localeCompare(String(a.effectiveDate || '')); });
+                var todayKey = new Date().toISOString().slice(0,10);
+                var current = sorted.find(function(v){ return v.effectiveDate <= todayKey; }) || sorted[sorted.length-1];
+                if (current && Array.isArray(current.groups)) { setGroups(current.groups); _sl.set('hw5ren:groups', JSON.stringify(current.groups)); }
+            }
+            return;
+        }
+        if (key.indexOf('officers:') === 0) {
+            var officerCid = key.slice('officers:'.length);
+            _sl.set('hw5ren:officers:' + officerCid, JSON.stringify(value));
+            if (officerCid === (_sl.get('hw5ren:activeClass') || activeClassId)) setOfficers(value);
+            return;
+        }
+        if (key.indexOf('schoolCalendar:') === 0) {
+            var calendarCid = key.slice('schoolCalendar:'.length);
+            _sl.set('hw5ren:schoolCal:' + calendarCid, JSON.stringify(value));
+            if (calendarCid === (_sl.get('hw5ren:activeClass') || activeClassId)) {
+                setSchoolCalendar(value);
+                _sl.set('hw5ren:schoolCal', JSON.stringify(value));
+            }
+            return;
+        }
+        if (key.indexOf('schoolEvents:') === 0) {
+            var eventsCid = key.slice('schoolEvents:'.length), normalizedEvents = normalizeSchoolEventStore(value);
+            _sl.set('hw5ren:schoolEvents:' + eventsCid, JSON.stringify(normalizedEvents));
+            if (eventsCid === (_sl.get('hw5ren:activeClass') || activeClassId)) { setSchoolEventStore(normalizedEvents); setSchoolWebsiteInput(normalizedEvents.profile.schoolUrl || ''); }
+        }
+    }
+
+    // 儲存 classes
+    async function saveSettingsToFirebase(cn, sn, sy, cls, grp, cs, ss1, ss2, cal) {
+        var value = buildSettingsMainValue(cn, sn, sy, cls, grp, cs, ss1, ss2, cal);
+        markSettingsDirty('settings:main', '班級設定');
+        if (!firebaseUid) return false;
+        return saveGuardedSettingsDocument('settings:main', value, '班級設定', 'main');
     }
     // 幹部資料按班級獨立存到 Firebase（key: officers:班級id），避免 settings:main 過於肥大
     async function saveOfficersToFirebase(o, classId) {
         if (!firebaseUid || !classId) return;
-        try {
-            await window.fsSet(firebaseUid, 'officers:' + classId, o);
-            setDriveError('');
-        } catch(e) { _sl.set('hw5ren:settingsDirty','1'); setDriveStatus('error'); setDriveError(String((e && e.message) || e).slice(0,80)); }
+        var key = 'officers:' + classId;
+        markSettingsDirty(key, '幹部資料');
+        return saveGuardedSettingsDocument(key, o, '幹部資料', 'officers');
     }
     function saveClasses(updated) {
         setClasses(updated);
@@ -5327,9 +6046,16 @@ function App() {
             var updatedClasses = classes.map(function(c) {
                 if (c.id !== cid) return c;
                 found = true;
-                return Object.assign({}, c, { year: next.schoolYear, school: next.schoolName, className: next.className });
+                return Object.assign({}, c, {
+                    year:next.schoolYear, school:next.schoolName, className:next.className,
+                    classSize:next.classSize, semStart1:next.semStart1, semStart2:next.semStart2
+                });
             });
-            if (!found) updatedClasses.push({ id: cid, year: next.schoolYear, school: next.schoolName, className: next.className, createdAt: new Date().toLocaleDateString("zh-TW") });
+            if (!found) updatedClasses.push({
+                id:cid, year:next.schoolYear, school:next.schoolName, className:next.className,
+                classSize:next.classSize, semStart1:next.semStart1, semStart2:next.semStart2,
+                createdAt:new Date().toLocaleDateString("zh-TW")
+            });
 
             setClassName(next.className); setSchoolName(next.schoolName); setSchoolYear(next.schoolYear);
             setSemStart1(next.semStart1); setSemStart2(next.semStart2); setClassSize(next.classSize);
@@ -5343,21 +6069,25 @@ function App() {
             _sl.set("hw5ren:groups", JSON.stringify(next.groups));
             _sl.set("hw5ren:groups:" + cid, JSON.stringify(next.groups));
             _sl.set("hw5ren:groupVersions:" + cid, JSON.stringify(next.groupVersions));
-            _sl.set('hw5ren:settingsDirty', '1');
+            markSettingsDirty('settings:main', '班級設定');
+            markSettingsDirty('groupVersions:' + cid, '組別版本');
             localSaved = true;
 
             if (firebaseUid) {
                 setDriveStatus('syncing');
-                await window.fsSet(firebaseUid, 'settings:main', {
-                    className: next.className, schoolName: next.schoolName, schoolYear: next.schoolYear,
-                    classes: updatedClasses, groups: next.groups, classSize: next.classSize,
-                    semStart1: next.semStart1, semStart2: next.semStart2,
-                    schoolCalendar: schoolCalendar, updatedAt: new Date().toISOString()
-                });
-                await window.fsSet(firebaseUid, 'groupVersions:' + cid, { versions: next.groupVersions });
-                _sl.remove('hw5ren:settingsDirty');
-                _sl.remove('hw5ren:resetSchoolCal');
-                setDriveError(''); setDriveStatus('ok'); markSynced();
+                var settingsValue = buildSettingsMainValue(
+                    next.className, next.schoolName, next.schoolYear, updatedClasses, next.groups,
+                    next.classSize, next.semStart1, next.semStart2, schoolCalendar
+                );
+                var settingsOk = await saveGuardedSettingsDocument('settings:main', settingsValue, '班級設定', 'main');
+                var groupsOk = await saveGuardedSettingsDocument('groupVersions:' + cid, { versions:next.groupVersions }, '組別版本', 'groups');
+                if (settingsOk && settingsOk.ok && groupsOk && groupsOk.ok) {
+                    _sl.remove('hw5ren:resetSchoolCal');
+                    setDriveError(''); setDriveStatus('ok'); markSynced();
+                } else {
+                    setDriveStatus('error');
+                    try { scheduleRetrySync('設定尚未完成同步'); } catch(exRetry) {}
+                }
             }
             return true;
         } catch(e) {
@@ -5377,7 +6107,23 @@ function App() {
         _sl.set("hw5ren:className", cls.className);
         _sl.set("hw5ren:school", cls.school);
         _sl.set("hw5ren:year", cls.year);
-        saveSettingsToFirebase(cls.className, cls.school, cls.year, undefined);
+        if (cls.classSize) { setClassSize(parseInt(cls.classSize,10) || 40); _sl.set('hw5ren:classSize', String(parseInt(cls.classSize,10) || 40)); }
+        if (cls.semStart1 !== undefined) { setSemStart1(cls.semStart1 || ''); _sl.set('hw5ren:semStart1', cls.semStart1 || ''); }
+        if (cls.semStart2 !== undefined) { setSemStart2(cls.semStart2 || ''); _sl.set('hw5ren:semStart2', cls.semStart2 || ''); }
+        try {
+            var classCalRaw = _sl.get('hw5ren:schoolCal:' + cls.id) || _sl.get('hw5ren:schoolCal');
+            var classCal = classCalRaw ? JSON.parse(classCalRaw) : {};
+            if (classCal && typeof classCal === 'object' && !Array.isArray(classCal)) {
+                setSchoolCalendar(classCal);
+                _sl.set('hw5ren:schoolCal', JSON.stringify(classCal));
+            }
+        } catch(exCal) { setSchoolCalendar({}); }
+        try {
+            var classEventRaw = _sl.get('hw5ren:schoolEvents:' + cls.id) || '{}';
+            var nextClassEvents = normalizeSchoolEventStore(JSON.parse(classEventRaw));
+            setSchoolEventStore(nextClassEvents); setSchoolWebsiteInput(nextClassEvents.profile.schoolUrl || '');
+            setSchoolEventFocusImportant(false); setExpandedSchoolEvents({});
+        } catch(exEvents) { setSchoolEventStore(normalizeSchoolEventStore({})); }
         setShowClassDropdown(false);
         // 切換年份：月曆跳到該班級的學年
         var yr = parseInt(cls.year) || new Date().getFullYear();
@@ -5391,10 +6137,15 @@ function App() {
             const grpKey = "hw5ren:groups:" + cls.id;
             const grpData = safeJSON(safeGet(grpKey), null);
             if (grpData && grpData.length > 0) {
-                saveGroupsForClass(grpData, cls.id);
+                setGroups(grpData);
+                try { window._fallbackGroups = grpData; } catch(exFallback) {}
+                _sl.set('hw5ren:groups', JSON.stringify(grpData));
             } else {
                 var emptyGroup = [{ id: 1, label: "\u7B2C1\u7D44", members: [], leader: 0, secretary: 0 }];
-                saveGroupsForClass(emptyGroup, cls.id);
+                setGroups(emptyGroup);
+                try { window._fallbackGroups = emptyGroup; } catch(exFallback2) {}
+                _sl.set('hw5ren:groups', JSON.stringify(emptyGroup));
+                _sl.set(grpKey, JSON.stringify(emptyGroup));
             }
         } catch(e) {}
         // 重新載入該班級的組別版本（不存在則初始化為單一版本）
@@ -5425,11 +6176,121 @@ function App() {
 
     // 新增班級
     function addClass(newCls) {
+        var existing = findExistingSchoolYearTransition(classes, '', newCls.year, newCls.school, newCls.className);
+        if (existing) {
+            switchClass(existing);
+            return { ok:false, duplicate:true, classId:existing.id };
+        }
         const id = "class_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,7);
         const cls = { id, year: newCls.year, school: newCls.school, className: newCls.className, createdAt: new Date().toLocaleDateString("zh-TW") };
         const updated = [...classes.filter(c => c.id !== id), cls];
         saveClasses(updated);
         switchClass(cls);
+        return { ok:true, duplicate:false, classId:id };
+    }
+    async function checkCurrentArchive() {
+        var ck = currentClassKey();
+        if (!ck) return false;
+        try {
+            var raw = await idbGet('yearArchive:' + ck);
+            var parsed = parseStoredObject(raw, null);
+            return !!(parsed && (parsed.snapshot || parsed.archivedAt || parsed.format === 'limu-teacher-full-backup'));
+        } catch(e) { return false; }
+    }
+    async function startSchoolYearTransition(options) {
+        var opts = options || {};
+        var archiveReady = await checkCurrentArchive();
+        if (!archiveReady) return { ok:false, needsArchive:true, message:'請先完成目前學年度的完整封存' };
+        var targetYear = String(parseInt(opts.year, 10) || '');
+        var targetClassName = String(opts.className || '').trim();
+        if (!/^20\d{2}$/.test(targetYear) || !targetClassName) return { ok:false, message:'請確認新學年度與班級名稱' };
+        var expectedYear = nextAcademicSchoolYear(schoolYear);
+        if (targetYear !== expectedYear) {
+            return { ok:false, message:'新學年度必須是目前班級的下一學年度（' + (parseInt(expectedYear,10) - 1911) + ' 學年度）' };
+        }
+        var targetSchool = String(opts.schoolName || schoolName || '').trim();
+        var targetClassSize = Math.max(1, Math.min(60, parseInt(opts.classSize, 10) || classSize || 40));
+        var targetSem1 = String(opts.semStart1 || '');
+        var targetSem2 = String(opts.semStart2 || '');
+        if (!targetSem1) return { ok:false, message:'請設定新學年度的開學日' };
+        var calendar = opts.calendar && typeof opts.calendar === 'object' && !Array.isArray(opts.calendar) ? opts.calendar : {};
+        var dateError = validateSchoolYearTransitionDates(targetYear, targetSem1, targetSem2, calendar);
+        if (dateError) return { ok:false, message:dateError };
+        var existingClass = findExistingSchoolYearTransition(classes, currentClassKey(), targetYear, targetSchool, targetClassName);
+        if (existingClass) {
+            return {
+                ok:false, duplicate:true, existingClassId:existingClass.id,
+                message:(parseInt(targetYear,10) - 1911) + ' 學年度的對應班級已存在（' + (existingClass.className || '未命名班級') + '），不會重複建立'
+            };
+        }
+        var id = 'class_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7);
+        var baseGroups = (groups || []).filter(function(g){ return g && !g.derived; });
+        var nextGroups = opts.copyGroupNames
+            ? baseGroups.map(function(g, index){ return { id:index + 1, label:g.label || ('第' + (index + 1) + '組'), members:[], leader:0, secretary:0 }; })
+            : [{ id:1, label:'第1組', members:[], leader:0, secretary:0 }];
+        if (nextGroups.length === 0) nextGroups = [{ id:1, label:'第1組', members:[], leader:0, secretary:0 }];
+        var nextVersions = [{ verId:1, effectiveDate:targetSem1, groups:nextGroups }];
+        var nextOfficers = { '1':[], '2':[] };
+        if (opts.copyOfficerRoles) {
+            ['1','2'].forEach(function(sem){
+                var seen = {};
+                (officers && officers[sem] || []).forEach(function(item){
+                    var role = String(item && item.role || '').trim();
+                    if (role && !seen[role]) { seen[role] = true; nextOfficers[sem].push({ role:role, seat:0 }); }
+                });
+            });
+        }
+        var newClass = {
+            id:id, year:targetYear, school:targetSchool, className:targetClassName,
+            classSize:targetClassSize, semStart1:targetSem1, semStart2:targetSem2,
+            createdAt:new Date().toLocaleDateString('zh-TW'), transitionedFrom:currentClassKey(),
+            transitionedFromYear:String(schoolYear || ''), transitionedAt:new Date().toISOString()
+        };
+        var updatedClasses = classes.concat([newClass]);
+        var nextSchoolEventStore = normalizeSchoolEventStore({
+            profile:normalizedClassIdentity(targetSchool) === normalizedClassIdentity(schoolName)
+                ? Object.assign({}, schoolEventStore.profile, { schoolName:targetSchool, lastImportedAt:'' })
+                : { schoolName:targetSchool, schoolUrl:'', sourceUrls:[], lastCheckedAt:'', lastImportedAt:'' },
+            events:[], excluded:[]
+        });
+        setClasses(updatedClasses); setActiveClassId(id);
+        setClassName(targetClassName); setSchoolName(targetSchool); setSchoolYear(targetYear);
+        setClassSize(targetClassSize); setSemStart1(targetSem1); setSemStart2(targetSem2);
+        setGroups(nextGroups); setGroupVersions(nextVersions); setOfficers(nextOfficers); setSchoolCalendar(calendar); setSchoolEventStore(nextSchoolEventStore); setSchoolWebsiteInput(nextSchoolEventStore.profile.schoolUrl || '');
+        try { window._fallbackGroups = nextGroups; } catch(eFallback) {}
+        _sl.set('hw5ren:activeClass', id);
+        _sl.set('hw5ren:classes', JSON.stringify(updatedClasses));
+        _sl.set('hw5ren:className', targetClassName); _sl.set('hw5ren:school', targetSchool); _sl.set('hw5ren:year', targetYear);
+        _sl.set('hw5ren:classSize', String(targetClassSize)); _sl.set('hw5ren:semStart1', targetSem1); _sl.set('hw5ren:semStart2', targetSem2);
+        _sl.set('hw5ren:groups', JSON.stringify(nextGroups)); _sl.set('hw5ren:groups:' + id, JSON.stringify(nextGroups));
+        _sl.set('hw5ren:groupVersions:' + id, JSON.stringify(nextVersions));
+        _sl.set('hw5ren:officers:' + id, JSON.stringify(nextOfficers));
+        _sl.set('hw5ren:schoolCal:' + id, JSON.stringify(calendar)); _sl.set('hw5ren:schoolCal', JSON.stringify(calendar));
+        _sl.set('hw5ren:schoolEvents:' + id, JSON.stringify(nextSchoolEventStore));
+        var mainValue = {
+            className:targetClassName, schoolName:targetSchool, schoolYear:targetYear,
+            classes:updatedClasses, groups:nextGroups, classSize:targetClassSize,
+            semStart1:targetSem1, semStart2:targetSem2, schoolCalendar:calendar,
+            appVersion:APP_VERSION, updatedAt:new Date().toISOString()
+        };
+        markSettingsDirty('settings:main', '班級設定');
+        markSettingsDirty('groupVersions:' + id, '組別版本');
+        markSettingsDirty('officers:' + id, '幹部資料');
+        markSettingsDirty('schoolCalendar:' + id, '學校行事曆');
+        markSettingsDirty('schoolEvents:' + id, '公開學校行事曆');
+        if (firebaseUid && navigator.onLine) {
+            setDriveStatus('syncing');
+            await saveGuardedSettingsDocument('settings:main', mainValue, '班級設定', 'main');
+            await saveGuardedSettingsDocument('groupVersions:' + id, { versions:nextVersions }, '組別版本', 'groups');
+            await saveGuardedSettingsDocument('officers:' + id, nextOfficers, '幹部資料', 'officers');
+            await saveGuardedSettingsDocument('schoolCalendar:' + id, calendar, '學校行事曆', 'calendar');
+            await saveGuardedSettingsDocument('schoolEvents:' + id, nextSchoolEventStore, '公開學校行事曆', 'schoolEvents');
+        }
+        var startDate = /^\d{4}-\d{2}-\d{2}$/.test(targetSem1) ? targetSem1 : targetYear + '-08-01';
+        setCurYear(parseInt(startDate.slice(0,4),10)); setCurMonth(parseInt(startDate.slice(5,7),10) - 1); setSelDate(startDate);
+        setTimeout(function(){ doLoadMonth(parseInt(startDate.slice(0,4),10), parseInt(startDate.slice(5,7),10) - 1); }, 80);
+        scheduleAutoSync();
+        return { ok:true, classId:id, rocYear:parseInt(targetYear,10) - 1911 };
     }
     // 同步 groups 到 window（供頂層函數使用）
     React.useEffect(function() { try { window._fallbackGroups = groups; } catch(e) {} }, [groups]);
@@ -5460,7 +6321,7 @@ function App() {
         var cid = classId || _sl.get("hw5ren:activeClass") || activeClassId;
         if (cid) {
             _sl.set("hw5ren:officers:" + cid, JSON.stringify(o));
-            _sl.set('hw5ren:settingsDirty','1');
+            markSettingsDirty('officers:' + cid, '幹部資料');
             saveOfficersToFirebase(o, cid);
         }
     }
@@ -5613,6 +6474,17 @@ function App() {
     const [showGearMenu, setShowGearMenu] = useState(false);
     const [showCalImport, setShowCalImport] = useState(false);
     const [calImportText, setCalImportText] = useState('');
+    const [schoolWebsiteInput, setSchoolWebsiteInput] = useState(function(){
+        return schoolEventStore.profile.schoolUrl || (String(schoolName || '').indexOf('大甲') >= 0 ? 'https://tcps.tc.edu.tw/' : '');
+    });
+    const [publicCalendarUrlInput, setPublicCalendarUrlInput] = useState('');
+    const [detectedCalendarSources, setDetectedCalendarSources] = useState([]);
+    const [calendarCandidates, setCalendarCandidates] = useState([]);
+    const [calendarCandidateSelection, setCalendarCandidateSelection] = useState({});
+    const [calendarImportBusy, setCalendarImportBusy] = useState(false);
+    const [calendarImportMessage, setCalendarImportMessage] = useState('');
+    const [showExcludedSchoolEvents, setShowExcludedSchoolEvents] = useState(false);
+    const publicCalendarFileRef = useRef(null);
     const [dayEventModal, setDayEventModal] = useState(false);
     const [dayEventInput, setDayEventInput] = useState('');
     const [yearRecords, setYearRecords] = useState(() => { try {
@@ -5629,6 +6501,117 @@ function App() {
     ];
     const isNerv = theme === "nerv";
     const isNebula = theme === "nebula";
+    function academicCalendarRange() {
+        var year = parseInt(schoolYear,10);
+        if (!/^20\d{2}$/.test(String(year))) {
+            var now = new Date(); year = now.getMonth()+1 >= 8 ? now.getFullYear() : now.getFullYear()-1;
+        }
+        return { start:year+'-08-01', end:(year+1)+'-07-31' };
+    }
+    function stageCalendarCandidates(events, append) {
+        var incoming = Array.isArray(events) ? events : [], existing = append ? calendarCandidates : [], byId = {};
+        existing.concat(incoming).forEach(function(item){ var normalized=normalizeSchoolEvent(item,{}); if(normalized)byId[normalized.id]=normalized; });
+        var list=Object.keys(byId).map(function(id){return byId[id];}).sort(function(a,b){return(a.date+a.time+a.title).localeCompare(b.date+b.time+b.title);}).slice(0,SCHOOL_EVENT_MAX_COUNT);
+        var selected={}; list.forEach(function(item){selected[item.id]=true;});
+        setCalendarCandidates(list); setCalendarCandidateSelection(selected);
+        return list;
+    }
+    async function fetchPublicCalendarText(source) {
+        var url=normalizePublicUrl(source&&source.url); if(!url)throw new Error('請輸入有效的公開 http／https 網址');
+        var controller=typeof AbortController!=='undefined'?new AbortController():null;
+        var timer=controller?setTimeout(function(){controller.abort();},15000):null;
+        try {
+            var response=await fetch(url,{cache:'no-store',credentials:'omit',redirect:'follow',signal:controller?controller.signal:undefined});
+            if(!response.ok)throw new Error('來源回應 '+response.status);
+            var length=parseInt(response.headers.get('content-length')||'0',10); if(length>SCHOOL_EVENT_MAX_BYTES)throw new Error('公開檔案超過 5MB');
+            var text=await response.text(); if(text.length>SCHOOL_EVENT_MAX_BYTES)throw new Error('公開檔案超過 5MB');
+            return {text:text,contentType:response.headers.get('content-type')||'',url:response.url||url};
+        } catch(e) {
+            if(e&&e.name==='AbortError')throw new Error('讀取逾時，請改用下載檔案匯入');
+            throw e;
+        } finally { if(timer)clearTimeout(timer); }
+    }
+    async function readDetectedSources(sources, inlineEvents) {
+        var sourceList=Array.isArray(sources)?sources:[], all=Array.isArray(inlineEvents)?inlineEvents.slice():[], failed=[];
+        var range=academicCalendarRange();
+        for(var i=0;i<sourceList.length;i++) {
+            var source=sourceList[i];
+            try {
+                setCalendarImportMessage('正在讀取 '+(i+1)+'／'+sourceList.length+'：'+(source.label||'公開行事曆'));
+                var loaded=await fetchPublicCalendarText(source);
+                var parsed=parsePublicCalendarText(loaded.text,Object.assign({},source,{url:loaded.url,name:source.name||source.url}),loaded.contentType,range.start,range.end);
+                all=all.concat(parsed);
+            } catch(e) { failed.push((source.label||source.url)+'：'+String(e&&e.message||e)); }
+        }
+        var staged=stageCalendarCandidates(all,false);
+        if(staged.length) setCalendarImportMessage('已找到 '+staged.length+' 筆公開事件'+(failed.length?'；'+failed.length+' 個來源無法直接讀取，可改用檔案匯入':'')+'。請勾選要加入的紀錄。');
+        else if(failed.length) setCalendarImportMessage('網站已找到公開來源，但瀏覽器無法直接讀取。請下載 .ics／CSV／JSON 後按「選擇檔案」。');
+        else setCalendarImportMessage('沒有找到可匯入的公開事件，請貼公開行事曆直接連結或選擇下載檔案。');
+        return staged;
+    }
+    async function detectSchoolWebsite() {
+        var website=normalizePublicUrl(schoolWebsiteInput); if(!website){setCalendarImportMessage('請輸入完整學校網址，例如 https://tcps.tc.edu.tw/');return;}
+        setCalendarImportBusy(true); setCalendarImportMessage('正在偵測公開行事曆…'); setDetectedCalendarSources([]); setCalendarCandidates([]);
+        var knownSources=knownSchoolCalendarSources(website);
+        try {
+            var loaded=await fetchPublicCalendarText({url:website,label:schoolName||'學校網站'});
+            var type=String(loaded.contentType||'').toLowerCase(), isHtml=type.indexOf('html')>=0||/<html|<!doctype/i.test(loaded.text);
+            var sources=isHtml?detectPublicCalendarSources(loaded.text,loaded.url):[{url:loaded.url,label:'公開行事曆',name:loaded.url}];
+            knownSources.forEach(function(item){if(!sources.some(function(source){return source.url===item.url;}))sources.push(item);});
+            var inlineEvents=isHtml?parseJsonLdEvents(loaded.text,{url:loaded.url,label:schoolName||'學校網站'}):[];
+            setDetectedCalendarSources(sources);
+            var next=normalizeSchoolEventStore(schoolEventStore);
+            next.profile=Object.assign({},next.profile,{schoolName:schoolName||next.profile.schoolName,schoolUrl:website,lastCheckedAt:new Date().toISOString(),sourceUrls:sources.map(function(item){return item.url;})});
+            saveSchoolEventStore(next);
+            if(sources.length||inlineEvents.length) await readDetectedSources(sources,inlineEvents);
+            else setCalendarImportMessage('這個網站沒有可辨識的公開行事曆連結。請貼上公開 .ics／CSV／JSON 連結，或下載後選擇檔案。');
+        } catch(e) {
+            if(knownSources.length) {
+                setDetectedCalendarSources(knownSources);
+                await readDetectedSources(knownSources,[]);
+            } else setCalendarImportMessage('網站不允許 App 直接讀取（常見的跨網域限制）。請貼公開行事曆直接連結，或下載公開檔案後匯入。');
+        } finally { setCalendarImportBusy(false); }
+    }
+    async function loadDirectPublicCalendar() {
+        var url=normalizePublicUrl(publicCalendarUrlInput); if(!url){setCalendarImportMessage('請輸入公開行事曆的完整網址');return;}
+        setCalendarImportBusy(true); setCalendarImportMessage('正在讀取公開行事曆…');
+        try {
+            var loaded=await fetchPublicCalendarText({url:url,label:'公開行事曆'}), range=academicCalendarRange();
+            var events=parsePublicCalendarText(loaded.text,{url:loaded.url,label:'公開行事曆',name:url},loaded.contentType,range.start,range.end);
+            stageCalendarCandidates(events,false);
+            setDetectedCalendarSources([{url:loaded.url,label:'公開行事曆',name:url}]);
+            setCalendarImportMessage(events.length?'已找到 '+events.length+' 筆事件，請勾選要加入的紀錄。':'公開來源中沒有本學年度事件。');
+        } catch(e) { setCalendarImportMessage('無法直接讀取：'+String(e&&e.message||e)+'。可先下載檔案再匯入。'); }
+        finally { setCalendarImportBusy(false); }
+    }
+    function readLocalCalendarFile(file) {
+        if(!file)return;
+        if(file.size>SCHOOL_EVENT_MAX_BYTES){setCalendarImportMessage('檔案超過 5MB，請縮小後再匯入');return;}
+        setCalendarImportBusy(true); setCalendarImportMessage('正在本機解析 '+file.name+'…');
+        var reader=new FileReader();
+        reader.onload=function(){
+            try {
+                var range=academicCalendarRange(), events=parsePublicCalendarText(String(reader.result||''),{url:'',label:file.name,name:file.name},file.type||'',range.start,range.end);
+                stageCalendarCandidates(events,false);
+                setCalendarImportMessage(events.length?'已從檔案找到 '+events.length+' 筆事件，請勾選要加入的紀錄。':'檔案中沒有本學年度事件。');
+            } catch(e){setCalendarImportMessage('檔案格式錯誤：'+String(e&&e.message||e));}
+            setCalendarImportBusy(false);
+        };
+        reader.onerror=function(){setCalendarImportBusy(false);setCalendarImportMessage('檔案讀取失敗');};
+        reader.readAsText(file,'UTF-8');
+    }
+    function installSelectedSchoolEvents() {
+        var selectedIds=Object.keys(calendarCandidateSelection).filter(function(id){return calendarCandidateSelection[id];});
+        if(!selectedIds.length){setCalendarImportMessage('請至少勾選一筆事件');return;}
+        var sourceUrls=detectedCalendarSources.map(function(item){return item.url;}).filter(Boolean);
+        var merged=mergeSchoolEventCandidates(schoolEventStore,calendarCandidates,selectedIds,{
+            schoolName:schoolName||schoolEventStore.profile.schoolName,schoolUrl:normalizePublicUrl(schoolWebsiteInput)||schoolEventStore.profile.schoolUrl,
+            sourceUrls:sourceUrls,lastImportedAt:new Date().toISOString()
+        });
+        saveSchoolEventStore(merged.store);
+        setCalendarImportMessage('已加入 '+merged.added+' 筆、更新 '+merged.updated+' 筆'+(merged.skipped?'；'+merged.skipped+' 筆維持排除':'')+'。');
+        setCalendarCandidates([]); setCalendarCandidateSelection({});
+    }
     // ── Drive / Auth ──
     const [authed, setAuthed] = useState(false);
     const [firebaseUid, setFirebaseUid] = useState(null);
@@ -5720,6 +6703,21 @@ function App() {
                     setSyncRevision(conflict.originalKey, { revision:conflict.remoteRevision, deviceId:conflict.remoteDeviceId, updatedAt:conflict.remoteUpdatedAt });
                 }
                 clearDirtyKeys([conflict.originalKey]);
+            } else if (conflict.kind === 'settings') {
+                if (choice === 'local') {
+                    var settingsResult = await window.fsSetGuarded(firebaseUid, conflict.originalKey, conflict.localValue, null, true);
+                    if (!settingsResult || !settingsResult.ok) throw new Error('本機設定寫入失敗');
+                    setSyncRevision(conflict.originalKey, settingsResult);
+                    applySettingsDocument(conflict.originalKey, conflict.localValue);
+                } else {
+                    applySettingsDocument(conflict.originalKey, conflict.remoteValue || {});
+                    setSyncRevision(conflict.originalKey, {
+                        revision:conflict.remoteRevision,
+                        deviceId:conflict.remoteDeviceId,
+                        updatedAt:conflict.remoteUpdatedAt
+                    });
+                }
+                clearSettingsDirty([conflict.originalKey]);
             } else if (conflict.kind === 'wp' || conflict.kind === 'gr') {
                 var envKey = conflict.localEnvelopeKey || conflict.originalKey;
                 if (choice === 'remote') {
@@ -5779,8 +6777,19 @@ function App() {
             setStor(function(s) { return Object.assign({}, s, { msg: '☁️ 從雲端載入…' }); });
             try {
                 // ── 設定資料：從 Firebase 還原 className / schoolName / schoolYear / classes / groups / classSize / semStart ──
-                var savedSettings = await window.fsGet(firebaseUid, 'settings:main');
-                var localSettingsDirty = safeGet('hw5ren:settingsDirty') === '1';
+                var savedSettingsMeta = await window.fsGetWithMeta(firebaseUid, 'settings:main');
+                var savedSettings = savedSettingsMeta ? savedSettingsMeta.value : null;
+                if (safeGet('hw5ren:settingsDirty') === '1' && getDirtySettingKeys().length === 0) {
+                    markSettingsDirty('settings:main', '班級設定');
+                    var legacyDirtyCid = safeGet('hw5ren:activeClass') || activeClassId;
+                    if (legacyDirtyCid) {
+                        markSettingsDirty('groupVersions:' + legacyDirtyCid, '組別版本');
+                        markSettingsDirty('officers:' + legacyDirtyCid, '幹部資料');
+                        markSettingsDirty('schoolCalendar:' + legacyDirtyCid, '學校行事曆');
+                    }
+                }
+                var localSettingsDirty = isSettingDirty('settings:main');
+                if (savedSettingsMeta && !localSettingsDirty) setSyncRevision('settings:main', savedSettingsMeta);
                 if (savedSettings && !localSettingsDirty) {
                     if (savedSettings.className)  { setClassName(savedSettings.className);   try { _sl.set('hw5ren:className', savedSettings.className); } catch(ex) {} }
                     if (savedSettings.schoolName) { setSchoolName(savedSettings.schoolName); try { _sl.set('hw5ren:school',    savedSettings.schoolName); } catch(ex) {} }
@@ -5823,8 +6832,12 @@ function App() {
                     if (savedSettings.semStart1) { setSemStart1(savedSettings.semStart1); try { _sl.set('hw5ren:semStart1', savedSettings.semStart1); } catch(ex) {} }
                     if (savedSettings.semStart2) { setSemStart2(savedSettings.semStart2); try { _sl.set('hw5ren:semStart2', savedSettings.semStart2); } catch(ex) {} }
                     if (savedSettings.schoolCalendar && typeof savedSettings.schoolCalendar === 'object' && !Array.isArray(savedSettings.schoolCalendar)) {
-                        setSchoolCalendar(savedSettings.schoolCalendar);
-                        try { _sl.set('hw5ren:schoolCal', JSON.stringify(savedSettings.schoolCalendar)); } catch(ex) {}
+                        var legacyCalendarCid = safeGet('hw5ren:activeClass') || activeClassId;
+                        var hasClassCalendar = legacyCalendarCid && safeGet('hw5ren:schoolCal:' + legacyCalendarCid);
+                        if (!hasClassCalendar && !(legacyCalendarCid && isSettingDirty('schoolCalendar:' + legacyCalendarCid))) {
+                            setSchoolCalendar(savedSettings.schoolCalendar);
+                            try { _sl.set('hw5ren:schoolCal', JSON.stringify(savedSettings.schoolCalendar)); } catch(ex) {}
+                        }
                     }
                 }
                 // ── 幹部與組別版本：依全部班級從 Firebase 還原（避免其他班級在新裝置上永遠空白）──
@@ -5837,39 +6850,82 @@ function App() {
                             var _cid = _clsObj.id;
                             // 幹部
                             try {
-                                var _ofData = await window.fsGet(firebaseUid, 'officers:' + _cid);
-                                if (_ofData && (_ofData["1"] || _ofData["2"])) {
-                                    _sl.set('hw5ren:officers:' + _cid, JSON.stringify(_ofData));
-                                    if (_cid === _curActive) setOfficers(_ofData);
+                                var _ofKey = 'officers:' + _cid;
+                                var _ofMeta = await window.fsGetWithMeta(firebaseUid, _ofKey);
+                                var _ofData = _ofMeta ? _ofMeta.value : null;
+                                if (_ofMeta && !isSettingDirty(_ofKey)) setSyncRevision(_ofKey, _ofMeta);
+                                if (!isSettingDirty(_ofKey) && _ofData && (_ofData["1"] || _ofData["2"])) {
+                                    applySettingsDocument(_ofKey, _ofData);
                                 }
                             } catch(exOf) {}
                             // 組別版本
                             try {
-                                var _gvData = await window.fsGet(firebaseUid, 'groupVersions:' + _cid);
-                                if (_gvData && _gvData.versions && Array.isArray(_gvData.versions) && _gvData.versions.length > 0) {
-                                    _sl.set('hw5ren:groupVersions:' + _cid, JSON.stringify(_gvData.versions));
-                                    if (_cid === _curActive) setGroupVersions(_gvData.versions);
+                                var _gvKey = 'groupVersions:' + _cid;
+                                var _gvMeta = await window.fsGetWithMeta(firebaseUid, _gvKey);
+                                var _gvData = _gvMeta ? _gvMeta.value : null;
+                                if (_gvMeta && !isSettingDirty(_gvKey)) setSyncRevision(_gvKey, _gvMeta);
+                                if (!isSettingDirty(_gvKey) && _gvData && _gvData.versions && Array.isArray(_gvData.versions) && _gvData.versions.length > 0) {
+                                    applySettingsDocument(_gvKey, _gvData);
                                 }
                             } catch(exGv) {}
                         }
                     } else if (_curActive) {
                         // fallback：savedSettings.classes 不存在時，保留原本單一班級還原路徑
                         try {
-                            var savedOfficers = await window.fsGet(firebaseUid, 'officers:' + _curActive);
-                            if (savedOfficers && (savedOfficers["1"] || savedOfficers["2"])) {
-                                setOfficers(savedOfficers);
-                                _sl.set('hw5ren:officers:' + _curActive, JSON.stringify(savedOfficers));
+                            var savedOfficersKey = 'officers:' + _curActive;
+                            var savedOfficersMeta = await window.fsGetWithMeta(firebaseUid, savedOfficersKey);
+                            var savedOfficers = savedOfficersMeta ? savedOfficersMeta.value : null;
+                            if (savedOfficersMeta && !isSettingDirty(savedOfficersKey)) setSyncRevision(savedOfficersKey, savedOfficersMeta);
+                            if (!isSettingDirty(savedOfficersKey) && savedOfficers && (savedOfficers["1"] || savedOfficers["2"])) {
+                                applySettingsDocument(savedOfficersKey, savedOfficers);
                             }
                         } catch(exOf2) {}
                         try {
-                            var savedVersions = await window.fsGet(firebaseUid, 'groupVersions:' + _curActive);
-                            if (savedVersions && savedVersions.versions && Array.isArray(savedVersions.versions) && savedVersions.versions.length > 0) {
-                                setGroupVersions(savedVersions.versions);
-                                _sl.set('hw5ren:groupVersions:' + _curActive, JSON.stringify(savedVersions.versions));
+                            var savedVersionsKey = 'groupVersions:' + _curActive;
+                            var savedVersionsMeta = await window.fsGetWithMeta(firebaseUid, savedVersionsKey);
+                            var savedVersions = savedVersionsMeta ? savedVersionsMeta.value : null;
+                            if (savedVersionsMeta && !isSettingDirty(savedVersionsKey)) setSyncRevision(savedVersionsKey, savedVersionsMeta);
+                            if (!isSettingDirty(savedVersionsKey) && savedVersions && savedVersions.versions && Array.isArray(savedVersions.versions) && savedVersions.versions.length > 0) {
+                                applySettingsDocument(savedVersionsKey, savedVersions);
                             }
                         } catch(exGv2) {}
                     }
                 } catch(exAll) {}
+                // ── 行事曆：v10 改為按班級獨立文件，舊版 settings:main 內容僅作首次遷移備援 ──
+                try {
+                    var _calendarCid = safeGet('hw5ren:activeClass') || _curActive || activeClassId;
+                    if (_calendarCid) {
+                        var _calendarKey = 'schoolCalendar:' + _calendarCid;
+                        var _calendarMeta = await window.fsGetWithMeta(firebaseUid, _calendarKey);
+                        if (_calendarMeta) {
+                            if (!isSettingDirty(_calendarKey)) setSyncRevision(_calendarKey, _calendarMeta);
+                            if (!isSettingDirty(_calendarKey) && _calendarMeta.value && typeof _calendarMeta.value === 'object') {
+                                applySettingsDocument(_calendarKey, _calendarMeta.value);
+                            }
+                        } else if (safeGet('hw5ren:schoolCal:' + _calendarCid)) {
+                            markSettingsDirty(_calendarKey, '學校行事曆');
+                        } else if (savedSettings && savedSettings.schoolCalendar && typeof savedSettings.schoolCalendar === 'object') {
+                            var _legacyCalendar = savedSettings.schoolCalendar;
+                            _sl.set('hw5ren:schoolCal:' + _calendarCid, JSON.stringify(_legacyCalendar));
+                            setSchoolCalendar(_legacyCalendar);
+                            markSettingsDirty(_calendarKey, '學校行事曆');
+                        }
+                    }
+                } catch(exCalendarLoad) {}
+                // ── v12 公開學校事件：與舊行事曆分開同步，避免改動既有格式 ──
+                try {
+                    var _eventsCid = safeGet('hw5ren:activeClass') || _curActive || activeClassId;
+                    if (_eventsCid) {
+                        var _eventsKey = 'schoolEvents:' + _eventsCid;
+                        var _eventsMeta = await window.fsGetWithMeta(firebaseUid, _eventsKey);
+                        if (_eventsMeta) {
+                            if (!isSettingDirty(_eventsKey)) setSyncRevision(_eventsKey, _eventsMeta);
+                            if (!isSettingDirty(_eventsKey) && _eventsMeta.value && typeof _eventsMeta.value === 'object') applySettingsDocument(_eventsKey, _eventsMeta.value);
+                        } else if (safeGet('hw5ren:schoolEvents:' + _eventsCid)) {
+                            markSettingsDirty(_eventsKey, '公開學校行事曆');
+                        }
+                    }
+                } catch(exSchoolEventsLoad) {}
                 // ── 作業資料 ──
                 var _pfx = classPrefix();
                 var _dirtyAtRestore = readDirtyMap();
@@ -5957,7 +7013,7 @@ function App() {
                 } catch(exPC) {}
                 setDriveStatus('ok');
                 setDriveError('');
-                if (localSettingsDirty || getDirtyKeys(_pfx).length > 0) scheduleAutoSync();
+                if (localSettingsDirty || getDirtySettingKeys().length > 0 || getDirtyKeys(_pfx).length > 0) scheduleAutoSync();
                 if (c > 0 || cCounsel > 0 || cAdopt > 0) {
                     setStor({ state: 'ok', msg: '✅ 雲端還原 ' + c + ' 天資料、' + cCounsel + ' 天輔導、認養 ' + cAdopt + ' 筆' });
                     await doLoadMonth(curYear, curMonth);
@@ -5968,6 +7024,7 @@ function App() {
                 setDriveStatus('error');
                 setDriveError(String((e && e.message) || e).slice(0,80));
                 setStor({ state: 'error', msg: '⚠️ 雲端同步失敗：' + String(e.message || e).slice(0,40) });
+                try { scheduleRetrySync('初始雲端載入失敗'); } catch(exRetry) {}
             }
         })();
     }, [authed, firebaseUid]);
@@ -6076,7 +7133,9 @@ function App() {
                 try {
                     var value = await idbGet(key);
                     if (!value) return { key:key, skipped:true };
-                    var result = await window.fsSetGuarded(firebaseUid, key, value, getSyncRevision(key), false);
+                    var expectedRevision = getSyncRevision(key);
+                    if ((expectedRevision === null || expectedRevision === undefined) && readDirtyMap()[key]) expectedRevision = -1;
+                    var result = await window.fsSetGuarded(firebaseUid, key, value, expectedRevision, false);
                     if (result && result.conflict) {
                         await keepConflictCopy(key, value, result, { kind:'primary', classKey:currentClassKey(), recordId:key });
                         try { window.dispatchEvent(new CustomEvent('limu-conflict-change')); } catch(exEvent) {}
@@ -6097,6 +7156,72 @@ function App() {
         }
         return { uploaded:uploaded, conflicts:conflicts, failed:failed };
     }
+    function settingValueForKey(key) {
+        if (key === 'settings:main') {
+            var localCid = _sl.get('hw5ren:activeClass') || activeClassId;
+            return {
+                className:_sl.get('hw5ren:className') || '',
+                schoolName:_sl.get('hw5ren:school') || '',
+                schoolYear:_sl.get('hw5ren:year') || '',
+                classes:safeJSON(_sl.get('hw5ren:classes') || '[]', []),
+                groups:safeJSON(_sl.get('hw5ren:groups') || '[]', []),
+                classSize:parseInt(_sl.get('hw5ren:classSize') || '40',10) || 40,
+                semStart1:_sl.get('hw5ren:semStart1') || '',
+                semStart2:_sl.get('hw5ren:semStart2') || '',
+                schoolCalendar:safeJSON((localCid && _sl.get('hw5ren:schoolCal:' + localCid)) || _sl.get('hw5ren:schoolCal') || '{}', {}),
+                appVersion:APP_VERSION,
+                updatedAt:new Date().toISOString()
+            };
+        }
+        if (key.indexOf('groupVersions:') === 0) {
+            var gvCid = key.slice('groupVersions:'.length);
+            return { versions:safeJSON(_sl.get('hw5ren:groupVersions:' + gvCid) || '[]', []) };
+        }
+        if (key.indexOf('officers:') === 0) {
+            var ofCid = key.slice('officers:'.length);
+            return safeJSON(_sl.get('hw5ren:officers:' + ofCid) || '{}', { '1':[], '2':[] });
+        }
+        if (key.indexOf('schoolCalendar:') === 0) {
+            var calCid = key.slice('schoolCalendar:'.length);
+            return safeJSON(_sl.get('hw5ren:schoolCal:' + calCid) || '{}', {});
+        }
+        if (key.indexOf('schoolEvents:') === 0) {
+            var eventCid = key.slice('schoolEvents:'.length);
+            return normalizeSchoolEventStore(safeJSON(_sl.get('hw5ren:schoolEvents:' + eventCid) || '{}', {}));
+        }
+        return null;
+    }
+    function settingSpecForKey(key) {
+        if (key === 'settings:main') return { label:'班級設定', type:'main' };
+        if (key.indexOf('groupVersions:') === 0) return { label:'組別版本', type:'groups' };
+        if (key.indexOf('officers:') === 0) return { label:'幹部資料', type:'officers' };
+        if (key.indexOf('schoolCalendar:') === 0) return { label:'學校行事曆', type:'calendar' };
+        if (key.indexOf('schoolEvents:') === 0) return { label:'公開學校行事曆', type:'schoolEvents' };
+        return { label:key, type:'main' };
+    }
+    async function syncDirtySettingsDocuments() {
+        var keys = getDirtySettingKeys();
+        if (safeGet('hw5ren:settingsDirty') === '1' && keys.length === 0) {
+            markSettingsDirty('settings:main', '班級設定');
+            var legacyCid = _sl.get('hw5ren:activeClass') || activeClassId;
+            if (legacyCid) {
+                markSettingsDirty('groupVersions:' + legacyCid, '組別版本');
+                markSettingsDirty('officers:' + legacyCid, '幹部資料');
+                markSettingsDirty('schoolCalendar:' + legacyCid, '學校行事曆');
+            }
+            keys = getDirtySettingKeys();
+        }
+        var synced = 0, failed = 0, conflicts = 0;
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i], value = settingValueForKey(key), spec = settingSpecForKey(key);
+            if (value === null) { failed++; continue; }
+            var result = await saveGuardedSettingsDocument(key, value, spec.label, spec.type);
+            if (result && result.ok) synced++;
+            else if (result && result.conflict) conflicts++;
+            else failed++;
+        }
+        return { synced:synced, failed:failed, conflicts:conflicts, pending:getDirtySettingKeys().length };
+    }
     async function doSync() {
         if (!firebaseUid) {
             setStor({ state: 'error', msg: '\u26A0\uFE0F \u8ACB\u5148\u767B\u5165\u518D\u540C\u6B65' });
@@ -6110,49 +7235,34 @@ function App() {
             const keys = (await idbKeys()).filter(k => k.startsWith(_pfx+'day:') || k.startsWith(_pfx+'counsel:'));
             var primaryResult = await uploadPrimaryKeys(keys);
             var secondaryResult = await syncSecondaryData(firebaseUid, currentClassKey());
-            var saveOk = primaryResult.failed.length === 0 && primaryResult.conflicts.length === 0 && secondaryResult.failed === 0 && secondaryResult.conflicts === 0;
-            // 2. 班級設定（settings:main）
-            try {
-                await window.fsSet(firebaseUid, 'settings:main', {
-                    className: className, schoolName: schoolName, schoolYear: schoolYear,
-                    classes: classes, groups: groups, classSize: classSize,
-                    semStart1: semStart1, semStart2: semStart2,
-                    schoolCalendar: schoolCalendar,
-                    updatedAt: new Date().toISOString()
-                });
-            } catch(e2) { saveOk = false; }
-            // 3. 組別版本（groupVersions:班級id）
-            if (_cid && groupVersions && groupVersions.length > 0) {
-                try { await window.fsSet(firebaseUid, 'groupVersions:' + _cid, { versions: groupVersions }); }
-                catch(e3) { saveOk = false; }
-            }
-            // 4. 幹部紀錄（officers:班級id）
-            if (_cid && officers && (officers["1"] || officers["2"])) {
-                try { await window.fsSet(firebaseUid, 'officers:' + _cid, officers); }
-                catch(e4) { saveOk = false; }
-            }
+            var settingsResult = await syncDirtySettingsDocuments();
+            var saveOk = primaryResult.failed.length === 0 && primaryResult.conflicts.length === 0 && secondaryResult.failed === 0 && secondaryResult.conflicts === 0 && settingsResult.failed === 0 && settingsResult.conflicts === 0;
             if (saveOk) {
                 clearDirtyKeys(primaryResult.uploaded);
-                _sl.remove('hw5ren:settingsDirty');
                 _sl.remove('hw5ren:resetSchoolCal');
+                resetRetrySync();
                 markSynced();
                 setDriveError('');
                 setDriveStatus('ok');
-                return primaryResult.uploaded.length + secondaryResult.synced;
+                return primaryResult.uploaded.length + secondaryResult.synced + settingsResult.synced;
             }
             clearDirtyKeys(primaryResult.uploaded);
             setDriveStatus('error');
-            var totalConflicts = primaryResult.conflicts.length + secondaryResult.conflicts;
+            var totalConflicts = primaryResult.conflicts.length + secondaryResult.conflicts + settingsResult.conflicts;
             if (totalConflicts > 0) {
                 setDriveError('發現 ' + totalConflicts + ' 筆跨裝置衝突，兩個版本都已保留');
-                throw new Error('偵測到跨裝置資料衝突，已停止覆蓋');
+                var conflictError = new Error('偵測到跨裝置資料衝突，已停止覆蓋');
+                conflictError.noRetry = true;
+                throw conflictError;
             }
             setDriveError('雲端同步未完成，本機資料仍安全保留');
+            scheduleRetrySync('雲端同步未完成');
             throw new Error('雲端同步未完成');
         }
         catch (_a) {
             setDriveStatus('error');
             setDriveError(String((_a && _a.message) || _a).slice(0,80));
+            if (navigator.onLine && !(_a && _a.noRetry)) scheduleRetrySync('雲端暫時無法連線');
             throw _a;
         }
     }
@@ -6460,6 +7570,40 @@ function App() {
     useEffect(() => { daySlipsRef.current = daySlips; }, [daySlips]);
     // ── 自動同步 Timer（debounce 3秒）──
     const autoSyncTimer = useRef(null);
+    const retrySyncTimer = useRef(null);
+    const retryAttemptRef = useRef(0);
+    function resetRetrySync() {
+        if (retrySyncTimer.current) clearTimeout(retrySyncTimer.current);
+        retrySyncTimer.current = null;
+        retryAttemptRef.current = 0;
+        try { _sl.remove('hw5ren:syncRetryV10'); } catch(e) {}
+    }
+    function scheduleRetrySync(reason) {
+        if (!authed || !firebaseUid || !navigator.onLine || retrySyncTimer.current) return;
+        var attempt = Math.min(retryAttemptRef.current, 4);
+        var delay = syncRetryDelay(attempt);
+        retryAttemptRef.current = Math.min(retryAttemptRef.current + 1, 4);
+        try { _sl.set('hw5ren:syncRetryV10', JSON.stringify({ attempt:attempt + 1, dueAt:Date.now() + delay, reason:reason || '' })); } catch(e) {}
+        setDriveError((reason || '雲端暫時無法連線') + '，將於 ' + Math.ceil(delay / 1000) + ' 秒後自動重試');
+        retrySyncTimer.current = setTimeout(function() {
+            retrySyncTimer.current = null;
+            if (!navigator.onLine || !firebaseUid) return;
+            setDriveStatus('syncing');
+            doSync().then(function(){
+                resetRetrySync();
+                grLoad();
+                wpLoadPlans();
+            }).catch(function(err){
+                if (!(err && err.noRetry)) scheduleRetrySync('Firebase 暫時無法完成同步');
+            });
+        }, delay);
+    }
+    useEffect(function(){
+        return function(){
+            if (autoSyncTimer.current) clearTimeout(autoSyncTimer.current);
+            if (retrySyncTimer.current) clearTimeout(retrySyncTimer.current);
+        };
+    }, []);
     function scheduleAutoSync() {
         if (!authed || !firebaseUid || !navigator.onLine)
             return;
@@ -6471,7 +7615,7 @@ function App() {
                 var _cid2 = _sl.get("hw5ren:activeClass") || activeClassId;
                 // 1. 作業 + 輔導紀錄
                 const keys = getDirtyKeys(_pfx).filter(k => k.startsWith(_pfx+"day:") || k.startsWith(_pfx+"counsel:"));
-                var hasSettingsDirty = _sl.get('hw5ren:settingsDirty') === '1';
+                var hasSettingsDirty = getDirtySettingKeys().length > 0 || _sl.get('hw5ren:settingsDirty') === '1';
                 var secondaryPending = await pendingSecondaryCount(currentClassKey());
                 if (keys.length === 0 && !hasSettingsDirty && secondaryPending === 0) return;
                 if (firebaseUid) {
@@ -6479,47 +7623,31 @@ function App() {
                     var primaryResult = await uploadPrimaryKeys(keys);
                     var secondaryResult = await syncSecondaryData(firebaseUid, currentClassKey());
                     if (primaryResult.failed.length > 0 || primaryResult.conflicts.length > 0 || secondaryResult.failed > 0 || secondaryResult.conflicts > 0) fsOk = false;
-                    if (hasSettingsDirty) {
-                        // 設定只在實際變更時同步，避免每次點名都重寫三份設定文件
-                        try {
-                            await window.fsSet(firebaseUid, 'settings:main', {
-                                className: className, schoolName: schoolName, schoolYear: schoolYear,
-                                classes: classes, groups: groups, classSize: classSize,
-                                semStart1: semStart1, semStart2: semStart2,
-                                schoolCalendar: schoolCalendar,
-                                updatedAt: new Date().toISOString()
-                            });
-                        } catch(e2) { fsOk = false; }
-                        if (_cid2 && groupVersions && groupVersions.length > 0) {
-                            try { await window.fsSet(firebaseUid, 'groupVersions:' + _cid2, { versions: groupVersions }); }
-                            catch(e3) { fsOk = false; }
-                        }
-                        if (_cid2 && officers && (officers["1"] || officers["2"])) {
-                            try { await window.fsSet(firebaseUid, 'officers:' + _cid2, officers); }
-                            catch(e4) { fsOk = false; }
-                        }
-                    }
+                    var settingsSyncResult = hasSettingsDirty ? await syncDirtySettingsDocuments() : { synced:0, failed:0, conflicts:0 };
+                    if (settingsSyncResult.failed > 0 || settingsSyncResult.conflicts > 0) fsOk = false;
                     if (fsOk) {
                         clearDirtyKeys(primaryResult.uploaded);
                         if (hasSettingsDirty) {
-                            _sl.remove('hw5ren:settingsDirty');
                             _sl.remove('hw5ren:resetSchoolCal');
                         }
+                        resetRetrySync();
                         setDriveError(''); setDriveStatus("ok"); markSynced();
                     }
                     else {
                         clearDirtyKeys(primaryResult.uploaded);
                         setDriveStatus("error");
-                        var autoConflictCount = primaryResult.conflicts.length + secondaryResult.conflicts;
+                        var autoConflictCount = primaryResult.conflicts.length + secondaryResult.conflicts + settingsSyncResult.conflicts;
                         setDriveError(autoConflictCount > 0
                             ? ("發現 " + autoConflictCount + " 筆跨裝置衝突，兩個版本都已保留")
                             : "雲端同步未完成，本機資料稍後會自動重試");
+                        if (autoConflictCount === 0) scheduleRetrySync('雲端同步未完成');
                     }
                 }
             }
             catch (_a) {
                 setDriveStatus("error");
                 setDriveError(String((_a && _a.message) || _a).slice(0,80));
+                scheduleRetrySync('Firebase 暫時無法完成同步');
             }
         }, 3000);
     }
@@ -7009,6 +8137,7 @@ function App() {
         const partial = hasSome && !allComplete;
         const absentCount = (((_a = att.personal) === null || _a === void 0 ? void 0 : _a.size) || 0) + (((_b = att.sick) === null || _b === void 0 ? void 0 : _b.size) || 0) + (((_c = att.public) === null || _c === void 0 ? void 0 : _c.size) || 0);
         const hasCounsel = !!((_d = counselMonth[dateStr]) === null || _d === void 0 ? void 0 : _d.length);
+        const publicEvents = (schoolEventStore.events || []).filter(function(item){return item.date===dateStr;});
         return (React.createElement("div", { className: "cal-cell"+(isToday?" is-today":"")+(allComplete?" is-complete":"")+(partial?" is-partial":""), onClick: () => openDay(dateStr) },
             React.createElement("span", { className: "cal-day" }, d),
             hasSome && (React.createElement("div", { className: "cal-dots" }, rows.filter(r => r.hwName).map((r, i) => {
@@ -7024,6 +8153,8 @@ function App() {
                     color: schoolCalendar[dateStr].includes("\ud83d\udd34") ? "#e53935" : schoolCalendar[dateStr].includes("\ud83d\udcdd") ? "#1565c0" : "#2e7d32"
                 }
             }, schoolCalendar[dateStr].replace(/[\u{1F534}\u{1F4DD}\u{1F3EB}\u{1F3C1}\u{2744}\u{2600}\u{1F3C3}\u{1F393}\u{1F4C5}\u{1F3C3}\u{1F4CB}]/gu, "").trim().slice(0,6)),
+            publicEvents.length > 0 && React.createElement("span", { className:"cal-event-tag", style:{fontSize:9,lineHeight:1.2,marginTop:1,display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"100%",color:publicEvents.some(function(item){return item.important;})?"#b26a00":"#6a4ba5"} },
+                (publicEvents[0].important?'★ ':'') + publicEvents[0].title.slice(0,6) + (publicEvents.length>1?' +'+(publicEvents.length-1):'')),
             absentCount > 0 && React.createElement("span", { className: "cal-absent" },
                 absentCount,
                 "\u8ACB")));
@@ -7630,6 +8761,8 @@ function App() {
     }
     // 依目前選取日期計算適用的組別版本（供日視圖顯示歷史正確的分組）
     var dayGroups = getGroupsForDate(selDate);
+    var schoolDayEvents = (schoolEventStore.events || []).filter(function(item){return item.date===selDate;});
+    var visibleSchoolDayEvents = schoolEventFocusImportant ? schoolDayEvents.filter(function(item){return item.important;}) : schoolDayEvents;
     return (React.createElement(React.Fragment, null,
         React.createElement("div", { className: "app", "data-theme": theme, onClick: (e) => { if (showClassDropdown && !e.target.closest(".class-switcher")) setShowClassDropdown(false); } },
         React.createElement("header", null,
@@ -8094,6 +9227,34 @@ function App() {
             className: isNerv ? "day-anim-term" : (theme === "nebula" ? "day-anim-float" : "day-anim-fade"),
             key: dayAnimKey
         },
+            schoolDayEvents.length > 0 && React.createElement("section", { 'aria-label':'當日學校公開事件', style:{
+                border:isNerv?'1px solid rgba(255,102,0,.35)':'1px solid #d8cff2',borderRadius:12,padding:'10px 12px',marginBottom:10,
+                background:isNerv?'rgba(255,102,0,.05)':theme==='nebula'?'rgba(130,90,220,.10)':'#faf8ff'
+            } },
+                React.createElement("div", { style:{display:'flex',alignItems:'center',gap:8,marginBottom:8} },
+                    React.createElement("span", { style:{fontWeight:900,color:isNerv?'#ff8844':'#5b3f91',fontSize:13,flex:1} }, '🏫 學校事件 '+schoolDayEvents.length+' 筆'),
+                    React.createElement("button", { onClick:function(){setSchoolEventFocusImportant(function(value){return !value;});}, style:{border:'none',borderRadius:16,padding:'6px 10px',background:schoolEventFocusImportant?'#7b5bb0':'#ece6f7',color:schoolEventFocusImportant?'#fff':'#5b3f91',fontSize:11,fontWeight:800,cursor:'pointer'} },
+                        schoolEventFocusImportant?'🔓 顯示全部':'🔒 只留重要')
+                ),
+                schoolEventFocusImportant && visibleSchoolDayEvents.length===0 && React.createElement("div", { style:{padding:'8px 4px',fontSize:12,color:'#8b7aa8'} }, '尚未標記重要事件；按星號後會保留在這裡。'),
+                visibleSchoolDayEvents.map(function(event){
+                    var expanded=!!expandedSchoolEvents[event.id];
+                    return React.createElement("article", { key:event.id, style:{display:'grid',gridTemplateColumns:'34px 1fr 34px',gap:6,alignItems:'start',padding:'8px 0',borderTop:'1px solid rgba(100,70,145,.12)'} },
+                        React.createElement("button", { 'aria-label':event.important?'取消重要標記':'標記為重要',onClick:function(){toggleSchoolEventImportant(event.id);},style:{border:'none',background:'transparent',fontSize:20,cursor:'pointer',padding:2,color:event.important?'#f6a800':'#c8bfd7'} }, event.important?'★':'☆'),
+                        React.createElement("button", { onClick:function(){setExpandedSchoolEvents(function(prev){var next=Object.assign({},prev);next[event.id]=!next[event.id];return next;});},style:{border:'none',background:'transparent',textAlign:'left',padding:0,cursor:'pointer',color:isNerv?'#ff8844':theme==='nebula'?'#ded4ff':'#2f2540'} },
+                            React.createElement("div", { style:{fontSize:13,fontWeight:800,lineHeight:1.45} }, (event.time?event.time+'　':'')+event.title),
+                            React.createElement("div", { style:{fontSize:10,color:'#8b7aa8',marginTop:2} }, (event.department||event.sourceLabel||'公開來源')+(expanded?'　▲ 收合':'　▼ 查看')),
+                            expanded && React.createElement("div", { style:{fontSize:11,lineHeight:1.65,color:isNerv?'rgba(255,150,90,.8)':'#665879',marginTop:7,whiteSpace:'pre-wrap'} },
+                                event.description||'沒有額外說明',
+                                event.location && React.createElement("div", null, '地點：'+event.location),
+                                event.sourceMissing && React.createElement("div", { style:{color:'#c26a00',fontWeight:700} }, '來源更新中已找不到此事件，可能已取消；資料暫時保留。'),
+                                event.sourceUrl && React.createElement("a", { href:event.sourceUrl,target:'_blank',rel:'noopener noreferrer',onClick:function(e){e.stopPropagation();},style:{display:'inline-block',marginTop:4,color:'#5d73c7'} }, '開啟公開來源')
+                            )
+                        ),
+                        React.createElement("button", { 'aria-label':'刪除並排除學校事件',onClick:function(){if(window.confirm('刪除「'+event.title+'」？\n下次更新也不會自動加回，可在「已排除」中恢復。'))excludeSchoolEvent(event.id);},style:{border:'none',background:'transparent',fontSize:16,cursor:'pointer',padding:3,opacity:.65} }, '🗑️')
+                    );
+                })
+            ),
             selDate && schoolCalendar[selDate] && React.createElement("div", { style:{
                 background: schoolCalendar[selDate].includes("\ud83d\udd34") ? "rgba(229,57,53,.12)" : schoolCalendar[selDate].includes("\ud83d\udcdd") ? "rgba(21,101,192,.12)" : "rgba(46,125,50,.12)",
                 border: "1px solid " + (schoolCalendar[selDate].includes("\ud83d\udd34") ? "rgba(229,57,53,.35)" : schoolCalendar[selDate].includes("\ud83d\udcdd") ? "rgba(21,101,192,.35)" : "rgba(46,125,50,.35)"),
@@ -9242,10 +10403,55 @@ function App() {
                 position:'absolute', bottom:0, left:0, right:0,
                 background: theme==='nerv'?'#120400':theme==='nebula'?'#0a0c20':'#fff',
                 borderRadius:'20px 20px 0 0', padding:'24px 20px calc(32px + env(safe-area-inset-bottom,0px))',
-                boxShadow:'0 -8px 40px rgba(0,0,0,.3)'
+                boxShadow:'0 -8px 40px rgba(0,0,0,.3)',maxHeight:'92vh',overflowY:'auto',boxSizing:'border-box'
             } },
                 React.createElement("div", { style:{fontSize:15,fontWeight:800,color:theme==='nerv'?'#ff8844':theme==='nebula'?'#c8b0ff':'#1e3a5f',marginBottom:6} },
                     theme==='nerv'?'// IMPORT CAL //':'📅 匯入學校行事曆'),
+                React.createElement("p", { style:{fontSize:11,color:'#8fa0b8',lineHeight:1.6,marginBottom:12} }, '完全免費｜只讀公開資料｜不使用 Cloud Functions｜不存取私人 Google 行事曆'),
+                React.createElement("section", { style:{border:'1px solid '+(theme==='nerv'?'rgba(255,102,0,.25)':'#dde5ee'),borderRadius:12,padding:12,marginBottom:12} },
+                    React.createElement("label", { style:{display:'block',fontSize:12,fontWeight:800,color:theme==='nerv'?'#ff8844':theme==='nebula'?'#c8b0ff':'#1e3a5f',marginBottom:6} }, '1. 學校網站'),
+                    React.createElement("div", { style:{display:'flex',gap:8} },
+                        React.createElement("input", { value:schoolWebsiteInput,onChange:function(e){setSchoolWebsiteInput(e.target.value);},placeholder:'https://學校網站/',inputMode:'url',style:{flex:1,minWidth:0,padding:'10px 11px',border:'1px solid #ccd8e5',borderRadius:9,fontSize:12,boxSizing:'border-box'} }),
+                        React.createElement("button", { disabled:calendarImportBusy,onClick:detectSchoolWebsite,style:{border:'none',borderRadius:9,padding:'0 12px',background:'#1e3a5f',color:'#fff',fontSize:12,fontWeight:800,cursor:calendarImportBusy?'wait':'pointer'} }, '自動偵測')
+                    ),
+                    React.createElement("div", { style:{fontSize:10,color:'#95a3b6',marginTop:6,lineHeight:1.5} }, '若學校網站封鎖跨網域讀取，系統會請你改用公開直接連結或下載檔案。')
+                ),
+                React.createElement("section", { style:{border:'1px solid '+(theme==='nerv'?'rgba(255,102,0,.25)':'#dde5ee'),borderRadius:12,padding:12,marginBottom:12} },
+                    React.createElement("label", { style:{display:'block',fontSize:12,fontWeight:800,color:theme==='nerv'?'#ff8844':theme==='nebula'?'#c8b0ff':'#1e3a5f',marginBottom:6} }, '2. 公開連結或下載檔案'),
+                    React.createElement("div", { style:{display:'flex',gap:8,marginBottom:8} },
+                        React.createElement("input", { value:publicCalendarUrlInput,onChange:function(e){setPublicCalendarUrlInput(e.target.value);},placeholder:'公開 .ics／CSV／JSON 連結',inputMode:'url',style:{flex:1,minWidth:0,padding:'10px 11px',border:'1px solid #ccd8e5',borderRadius:9,fontSize:12,boxSizing:'border-box'} }),
+                        React.createElement("button", { disabled:calendarImportBusy,onClick:loadDirectPublicCalendar,style:{border:'none',borderRadius:9,padding:'0 12px',background:'#526b8e',color:'#fff',fontSize:12,fontWeight:800,cursor:calendarImportBusy?'wait':'pointer'} }, '讀取')
+                    ),
+                    React.createElement("input", { ref:publicCalendarFileRef,type:'file',accept:'.ics,.ical,.csv,.json,text/calendar,text/csv,application/json',style:{display:'none'},onChange:function(e){var file=e.target.files&&e.target.files[0];readLocalCalendarFile(file);e.target.value='';} }),
+                    React.createElement("button", { onClick:function(){if(publicCalendarFileRef.current)publicCalendarFileRef.current.click();},style:{width:'100%',padding:'10px',border:'1px dashed #9fb3ca',borderRadius:9,background:theme==='nerv'?'rgba(255,102,0,.06)':'#f7f9fc',color:theme==='nerv'?'#ff8844':'#526b8e',fontSize:12,fontWeight:800,cursor:'pointer'} }, '📂 選擇已下載的 .ics／CSV／JSON')
+                ),
+                calendarImportMessage && React.createElement("div", { role:'status',style:{padding:'9px 11px',borderRadius:9,background:theme==='nerv'?'rgba(255,102,0,.08)':theme==='nebula'?'rgba(150,100,255,.10)':'#eef5ff',color:theme==='nerv'?'#ff9a64':theme==='nebula'?'#d7c9ff':'#365b88',fontSize:11,lineHeight:1.55,marginBottom:12} }, calendarImportMessage),
+                detectedCalendarSources.length>0 && React.createElement("div", { style:{fontSize:10,color:'#8fa0b8',marginBottom:10} }, '已辨識公開來源：'+detectedCalendarSources.map(function(item){return item.label;}).join('、')),
+                calendarCandidates.length>0 && React.createElement("section", { style:{border:'1px solid '+(theme==='nerv'?'rgba(255,102,0,.25)':'#d8cff2'),borderRadius:12,padding:12,marginBottom:14} },
+                    React.createElement("div", { style:{display:'flex',alignItems:'center',gap:7,marginBottom:8} },
+                        React.createElement("strong", { style:{fontSize:12,color:theme==='nerv'?'#ff8844':theme==='nebula'?'#c8b0ff':'#4f3a78',flex:1} }, '3. 勾選要加入的事件（'+calendarCandidates.length+'）'),
+                        React.createElement("button", { onClick:function(){var all={};calendarCandidates.forEach(function(item){all[item.id]=true;});setCalendarCandidateSelection(all);},style:{border:'none',background:'transparent',color:'#5d73c7',fontSize:10,fontWeight:800,cursor:'pointer'} }, '全選'),
+                        React.createElement("button", { onClick:function(){setCalendarCandidateSelection({});},style:{border:'none',background:'transparent',color:'#8a96a8',fontSize:10,fontWeight:800,cursor:'pointer'} }, '全不選')
+                    ),
+                    React.createElement("div", { style:{maxHeight:250,overflowY:'auto'} }, calendarCandidates.map(function(event){
+                        var excluded=(schoolEventStore.excluded||[]).some(function(item){return item.id===event.id;});
+                        return React.createElement("label", { key:event.id,style:{display:'grid',gridTemplateColumns:'24px 82px 1fr',gap:5,alignItems:'start',padding:'7px 2px',borderTop:'1px solid rgba(120,100,150,.10)',fontSize:11,cursor:'pointer'} },
+                            React.createElement("input", { type:'checkbox',checked:!!calendarCandidateSelection[event.id],onChange:function(e){var checked=e.target.checked;setCalendarCandidateSelection(function(prev){var next=Object.assign({},prev);next[event.id]=checked;return next;});} }),
+                            React.createElement("span", { style:{color:'#8fa0b8'} }, event.date+(event.time?' '+event.time:'')),
+                            React.createElement("span", { style:{color:theme==='nerv'?'#ff9a64':theme==='nebula'?'#ddd2ff':'#2f3d50',fontWeight:700} }, event.title, excluded&&React.createElement("small", { style:{display:'block',color:'#c26a00'} }, '已排除，匯入時會略過'))
+                        );
+                    })),
+                    React.createElement("button", { onClick:installSelectedSchoolEvents,style:{width:'100%',marginTop:10,padding:'11px',border:'none',borderRadius:10,background:theme==='nerv'?'#ff6600':'#6b4ca1',color:'#fff',fontSize:12,fontWeight:900,cursor:'pointer'} }, '加入已勾選事件')
+                ),
+                React.createElement("div", { style:{display:'flex',gap:8,alignItems:'center',padding:'8px 0 12px',borderBottom:'1px solid #e8edf3'} },
+                    React.createElement("span", { style:{flex:1,fontSize:11,color:'#7f8ea3'} }, '已加入 '+(schoolEventStore.events||[]).length+' 筆｜已排除 '+(schoolEventStore.excluded||[]).length+' 筆'),
+                    (schoolEventStore.excluded||[]).length>0 && React.createElement("button", { onClick:function(){setShowExcludedSchoolEvents(function(value){return !value;});},style:{border:'none',background:'#fff3df',color:'#a46000',borderRadius:14,padding:'6px 9px',fontSize:10,fontWeight:800,cursor:'pointer'} }, showExcludedSchoolEvents?'收合':'查看已排除')
+                ),
+                showExcludedSchoolEvents && React.createElement("div", { style:{maxHeight:180,overflowY:'auto',marginBottom:12} }, (schoolEventStore.excluded||[]).map(function(event){return React.createElement("div", { key:event.id,style:{display:'flex',gap:7,alignItems:'center',padding:'7px 2px',borderBottom:'1px solid #eee',fontSize:11} },
+                    React.createElement("span", { style:{color:'#8fa0b8'} }, event.date),React.createElement("span", { style:{flex:1,color:theme==='nerv'?'#ff9a64':theme==='nebula'?'#ddd2ff':'#3e4b5f'} }, event.title),
+                    React.createElement("button", { onClick:function(){restoreExcludedSchoolEvent(event.id);},style:{border:'none',borderRadius:12,padding:'5px 8px',background:'#e6f5e9',color:'#26733c',fontSize:10,fontWeight:800,cursor:'pointer'} }, '恢復')
+                );})),
+                React.createElement("div", { style:{marginTop:8,marginBottom:12,paddingTop:12,borderTop:'1px solid #e8edf3',fontSize:11,fontWeight:800,color:'#8fa0b8'} }, '舊版 JSON 行事曆（保留相容）'),
                 React.createElement("p", { style:{fontSize:12,color:'#aab8cc',marginBottom:14} },
                     '目前：' + (schoolCalendarInfo.rocYear ? schoolCalendarInfo.rocYear + ' 學年度' : '未設定學年度') +
                     (schoolCalendarInfo.last ? '，最後事件 ' + schoolCalendarInfo.last : '') + '。請貼上新學年度 JSON；內建 114 學年度僅供歷史還原。'),
@@ -9265,8 +10471,10 @@ function App() {
                         onClick: function(){
                             // 使用目前已內建的資料（重設為預設值，從 localStorage 清除）
                             safeRemove('hw5ren:schoolCal');
+                            var resetCalendarCid = _sl.get('hw5ren:activeClass') || activeClassId;
+                            if (resetCalendarCid) safeRemove('hw5ren:schoolCal:' + resetCalendarCid);
                             safeSet('hw5ren:resetSchoolCal', '1');
-                            safeSet('hw5ren:settingsDirty', '1');
+                            if (resetCalendarCid) markSettingsDirty('schoolCalendar:' + resetCalendarCid, '學校行事曆');
                             window.location.reload();
                         }
                     }, '還原內建 114（歷史）'),
@@ -9366,7 +10574,7 @@ function App() {
                 ? React.createElement("div", { style:{padding:'24px 8px',textAlign:'center',fontSize:13,opacity:.7} }, '目前本機與雲端沒有需要人工選擇的資料。')
                 : syncConflicts.map(function(conflict){
                     var busy = conflictBusyKey === conflict._key;
-                    var typeLabel = conflict.kind === 'wp' ? '週計畫' : conflict.kind === 'gr' ? '正式輔導' : (String(conflict.originalKey || '').indexOf('counsel:') >= 0 ? '日輔導' : '每日紀錄');
+                    var typeLabel = conflict.kind === 'wp' ? '週計畫' : conflict.kind === 'gr' ? '正式輔導' : conflict.kind === 'settings' ? (conflict.settingsLabel || '設定資料') : (String(conflict.originalKey || '').indexOf('counsel:') >= 0 ? '日輔導' : '每日紀錄');
                     return React.createElement("div", { key:conflict._key, style:{border:theme==='nerv'?'1px solid rgba(255,102,0,.35)':'1px solid #dfe6ef',borderRadius:14,padding:14,marginBottom:12,background:theme==='nerv'?'rgba(255,102,0,.05)':'#f8fafc'} },
                         React.createElement("div", { style:{display:'flex',justifyContent:'space-between',gap:8,marginBottom:10} },
                             React.createElement("strong", null, typeLabel + (conflict.classKey ? ' · ' + conflict.classKey : '')),
@@ -9385,7 +10593,7 @@ function App() {
                         React.createElement("div", { style:{display:'flex',gap:7,flexWrap:'wrap'} },
                             React.createElement("button", { type:'button', disabled:!!conflictBusyKey, onClick:function(){ resolveSyncConflict(conflict, 'local'); }, style:{flex:1,minWidth:110,padding:'10px 8px',border:'none',borderRadius:10,background:'#ef6c00',color:'#fff',fontWeight:800,cursor:'pointer',opacity:conflictBusyKey ? 0.6 : 1} }, busy ? '處理中…' : '使用此裝置'),
                             React.createElement("button", { type:'button', disabled:!!conflictBusyKey, onClick:function(){ resolveSyncConflict(conflict, 'remote'); }, style:{flex:1,minWidth:110,padding:'10px 8px',border:'none',borderRadius:10,background:'#1565c0',color:'#fff',fontWeight:800,cursor:'pointer',opacity:conflictBusyKey ? 0.6 : 1} }, '使用雲端'),
-                            conflict.kind !== 'primary' && !conflict.deleted && React.createElement("button", { type:'button', disabled:!!conflictBusyKey, onClick:function(){ resolveSyncConflict(conflict, 'both'); }, style:{flex:1,minWidth:110,padding:'10px 8px',border:'none',borderRadius:10,background:'#2e7d32',color:'#fff',fontWeight:800,cursor:'pointer',opacity:conflictBusyKey ? 0.6 : 1} }, conflict.kind === 'wp' ? '合併兩份' : '兩份都保留')
+                            (conflict.kind === 'wp' || conflict.kind === 'gr') && !conflict.deleted && React.createElement("button", { type:'button', disabled:!!conflictBusyKey, onClick:function(){ resolveSyncConflict(conflict, 'both'); }, style:{flex:1,minWidth:110,padding:'10px 8px',border:'none',borderRadius:10,background:'#2e7d32',color:'#fff',fontWeight:800,cursor:'pointer',opacity:conflictBusyKey ? 0.6 : 1} }, conflict.kind === 'wp' ? '合併兩份' : '兩份都保留')
                         )
                     );
                 })
@@ -10102,7 +11310,7 @@ function App() {
         ),
         /* wpInputOpen 已廢棄，改由 hwpicker 處理 */
         counselView && (React.createElement(CounselView, { date: counselDate, records: counselRecords, onSave: saveCounselRecord, onClose: () => setCounselView(false), isNerv: isNerv, allMembers: ALL_MEMBERS, groups: groups, fmtDate: fmtDate })),
-        view === "settings" && (React.createElement(SettingsView, { groups: groups, saveGroups: saveGroups, groupVersions: groupVersions, saveGroupVersions: saveGroupVersions, saveSettingsAtomic: saveSettingsAtomic, className: className, setClassName: (v) => { setClassName(v); _sl.set("hw5ren:className", v); saveSettingsToFirebase(v, undefined, undefined, undefined); }, schoolName: schoolName, setSchoolName: (v) => { setSchoolName(v); _sl.set("hw5ren:school", v); saveSettingsToFirebase(undefined, v, undefined, undefined); }, schoolYear: schoolYear, setSchoolYear: (v) => { setSchoolYear(v); _sl.set("hw5ren:year", v); saveSettingsToFirebase(undefined, undefined, v, undefined); }, semStart1: semStart1, setSemStart1: (v) => { setSemStart1(v); _sl.set("hw5ren:semStart1", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, v, undefined); }, semStart2: semStart2, setSemStart2: (v) => { setSemStart2(v); _sl.set("hw5ren:semStart2", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, undefined, v); }, classSize: classSize, setClassSize: (v) => { setClassSize(v); _sl.set("hw5ren:classSize", String(v)); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, v, undefined, undefined); }, officers: officers, saveOfficers: saveOfficers, officerPresets: officerPresets, setOfficerPresets: (v) => { setOfficerPresets(v); _sl.set("hw5ren:officerPresets", JSON.stringify(v)); }, onClose: () => setView("month"), isNerv: isNerv, idbKeys: idbKeys, idbGet: idbGet, idbDelete: idbDelete, openDB: openDB, DB_STORE: DB_STORE, classes: classes, addClass: addClass, firebaseUid: firebaseUid })),
+        view === "settings" && (React.createElement(SettingsView, { groups: groups, saveGroups: saveGroups, groupVersions: groupVersions, saveGroupVersions: saveGroupVersions, saveSettingsAtomic: saveSettingsAtomic, className: className, setClassName: (v) => { setClassName(v); _sl.set("hw5ren:className", v); saveSettingsToFirebase(v, undefined, undefined, undefined); }, schoolName: schoolName, setSchoolName: (v) => { setSchoolName(v); _sl.set("hw5ren:school", v); saveSettingsToFirebase(undefined, v, undefined, undefined); }, schoolYear: schoolYear, setSchoolYear: (v) => { setSchoolYear(v); _sl.set("hw5ren:year", v); saveSettingsToFirebase(undefined, undefined, v, undefined); }, semStart1: semStart1, setSemStart1: (v) => { setSemStart1(v); _sl.set("hw5ren:semStart1", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, v, undefined); }, semStart2: semStart2, setSemStart2: (v) => { setSemStart2(v); _sl.set("hw5ren:semStart2", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, undefined, v); }, classSize: classSize, setClassSize: (v) => { setClassSize(v); _sl.set("hw5ren:classSize", String(v)); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, v, undefined, undefined); }, officers: officers, saveOfficers: saveOfficers, officerPresets: officerPresets, setOfficerPresets: (v) => { setOfficerPresets(v); _sl.set("hw5ren:officerPresets", JSON.stringify(v)); }, onClose: () => setView("month"), isNerv: isNerv, idbKeys: idbKeys, idbGet: idbGet, idbDelete: idbDelete, openDB: openDB, DB_STORE: DB_STORE, classes: classes, addClass: addClass, firebaseUid: firebaseUid, checkCurrentArchive:checkCurrentArchive, startSchoolYearTransition:startSchoolYearTransition, onOpenArchive:function(){setView("archive");} })),
         view === "archive" && (React.createElement(ArchiveView, { idbKeys: idbKeys, idbGet: idbGet, idbSet: idbSet, groups: groups, schoolYear: schoolYear, className: className, schoolName: schoolName, classes: classes, yearRecords: yearRecords, isNerv: isNerv, firebaseUid: firebaseUid })))));
 }
 
@@ -10331,25 +11539,83 @@ setTimeout(function(){
 // ── Service Worker 註冊（PWA 離線支援）──
 (function() {
   if (!('serviceWorker' in navigator)) return;
+  var updateRegistration = null;
+  var reloadingForUpdate = false;
 
-  function showUpdateBar() {
+  function showUpdateBar(registration, message, mismatch) {
     try {
-      if (document.getElementById('limu-update-bar')) return;
-      var bar = document.createElement('div');
-      bar.id = 'limu-update-bar';
-      bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e3a5f;color:#fff;padding:12px 20px;font-size:13px;font-weight:700;z-index:99999;display:flex;align-items:center;justify-content:space-between;font-family:sans-serif';
-      var updateText = document.createElement('span');
-      updateText.textContent = '📦 App 有新版本';
-      var updateButton = document.createElement('button');
-      updateButton.textContent = '重新載入';
-      updateButton.setAttribute('aria-label', '重新載入 App 新版本');
-      updateButton.style.cssText = 'background:#4fc3f7;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;color:#0d2137';
-      updateButton.onclick = function(){ window.location.reload(); };
-      bar.appendChild(updateText);
-      bar.appendChild(updateButton);
-      document.body.appendChild(bar);
+      updateRegistration = registration || updateRegistration;
+      var bar = document.getElementById('limu-update-bar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'limu-update-bar';
+        bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e3a5f;color:#fff;padding:12px 20px;font-size:13px;font-weight:700;z-index:99999;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:sans-serif';
+        var updateText = document.createElement('span');
+        updateText.id = 'limu-update-text';
+        var updateButton = document.createElement('button');
+        updateButton.id = 'limu-update-button';
+        updateButton.style.cssText = 'background:#4fc3f7;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;color:#0d2137;min-width:92px';
+        bar.appendChild(updateText);
+        bar.appendChild(updateButton);
+        document.body.appendChild(bar);
+      }
+      var textNode = document.getElementById('limu-update-text');
+      var buttonNode = document.getElementById('limu-update-button');
+      textNode.textContent = message || '📦 App v12 已下載完成';
+      buttonNode.textContent = mismatch ? '重新檢查' : '立即更新';
+      buttonNode.setAttribute('aria-label', mismatch ? '重新檢查部署版本' : '啟用 App 新版本');
+      buttonNode.onclick = function(){
+        if (mismatch) { window.location.reload(); return; }
+        var waiting = updateRegistration && updateRegistration.waiting;
+        if (waiting) {
+          buttonNode.disabled = true;
+          buttonNode.textContent = '更新中…';
+          waiting.postMessage({ type:'SKIP_WAITING' });
+        } else if (updateRegistration) {
+          updateRegistration.update();
+        }
+      };
     } catch(ex) {}
   }
+
+  function checkBuildConsistency(reg) {
+    var checkToken = Date.now();
+    Promise.all([
+      fetch('./version.json?check=' + checkToken, { cache:'no-store' }).then(function(response){
+        if (!response.ok) throw new Error('version unavailable');
+        return response.json();
+      }),
+      fetch('./sw.js?check=' + checkToken, { cache:'no-store' }).then(function(response){
+        if (!response.ok) throw new Error('service worker unavailable');
+        return response.text();
+      })
+    ]).then(function(results){
+      var info = results[0], swText = results[1] || '';
+      if (!info || info.buildId !== APP_BUILD_ID || info.cacheName !== APP_CACHE_NAME || swText.indexOf(APP_BUILD_ID) < 0 || swText.indexOf("CACHE_PREFIX + 'v12'") < 0) {
+        showUpdateBar(reg, '⚠️ 部署檔案版本不一致，請重新上傳完整 v12 部署包', true);
+      }
+    }).catch(function(){ /* 離線時不顯示混版警告 */ });
+    try {
+      if (!reg.active || typeof MessageChannel === 'undefined') return;
+      var channel = new MessageChannel();
+      var timer = setTimeout(function(){ channel.port1.onmessage = null; }, 1200);
+      channel.port1.onmessage = function(event){
+        clearTimeout(timer);
+        var info = event.data || {};
+        if (info.buildId && info.buildId !== APP_BUILD_ID && !reg.waiting && !reg.installing) {
+          showUpdateBar(reg, '📦 App v12 更新檔已發現，準備下載', false);
+          reg.update();
+        }
+      };
+      reg.active.postMessage({ type:'GET_BUILD_INFO' }, [channel.port2]);
+    } catch(e) {}
+  }
+
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (reloadingForUpdate) return;
+    reloadingForUpdate = true;
+    window.location.reload();
+  });
 
   window.addEventListener('load', function() {
     // 支援的瀏覽器會盡量將教師資料標記為持久儲存，降低系統自動清除風險。
@@ -10362,17 +11628,19 @@ setTimeout(function(){
       try { window._writeLog('step', 'SW registered, scope: ' + reg.scope); } catch(e) {}
 
       // 頁面開啟前就已下載完成的等待中版本，也要能顯示更新提示。
-      if (reg.waiting && navigator.serviceWorker.controller) showUpdateBar();
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdateBar(reg);
 
       // 偵測是否有新版本
       reg.addEventListener('updatefound', function() {
         var newWorker = reg.installing;
         newWorker.addEventListener('statechange', function() {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            showUpdateBar();
+            showUpdateBar(reg);
           }
         });
       });
+      checkBuildConsistency(reg);
+      reg.update().catch(function(){});
     }).catch(function(err) {
       try { window._writeLog('error', 'SW register failed: ' + String(err)); } catch(e) {}
     });
