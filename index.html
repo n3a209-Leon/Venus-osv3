@@ -3074,6 +3074,44 @@ function rocSemester(d) {
     var sem = (m >= 8 || m === 1) ? '上學期' : '下學期';
     return rocYear + ' 學年度' + sem;
 }
+// ── 從學校行事曆推測學期結束日 ────────────────────────────────
+// calendar 格式：{ 'YYYY-MM-DD': '事件名稱' }
+function detectSemesterEnds(calendar) {
+    var out = { semEnd1:'', semEnd2:'', why1:'', why2:'' };
+    var cal = (calendar && typeof calendar === 'object') ? calendar : {};
+    var keys = Object.keys(cal).filter(function(k){ return /^\d{4}-\d{2}-\d{2}$/.test(k); }).sort();
+    if (!keys.length) return out;
+    function minus1(ds) {
+        var d = new Date(ds); d.setDate(d.getDate() - 1);
+        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+    // 直接命中「結業/休業/散學」→ 當天即為學期最後一天
+    var END_WORDS = ['休業式','結業式','散學','休業','結業'];
+    // 命中「寒假/暑假開始」→ 前一天為學期最後一天
+    var VAC1_WORDS = ['寒假開始','寒假起','寒假'];
+    var VAC2_WORDS = ['暑假開始','暑假起','暑假'];
+    function hit(text, words) {
+        var t = String(text || '');
+        for (var i = 0; i < words.length; i++) { if (t.indexOf(words[i]) >= 0) return words[i]; }
+        return '';
+    }
+    for (var i = 0; i < keys.length; i++) {
+        var ds = keys[i], title = String(cal[ds] || ''), m = Number(ds.split('-')[1]);
+        var isSem1Zone = (m === 1 || m === 12);        // 上學期尾聲
+        var isSem2Zone = (m >= 5 && m <= 7);           // 下學期尾聲
+        var w = hit(title, END_WORDS);
+        if (w) {
+            if (isSem1Zone && !out.semEnd1) { out.semEnd1 = ds; out.why1 = title; }
+            else if (isSem2Zone && !out.semEnd2) { out.semEnd2 = ds; out.why2 = title; }
+            continue;
+        }
+        var v1 = hit(title, VAC1_WORDS);
+        if (v1 && isSem1Zone && !out.semEnd1) { out.semEnd1 = minus1(ds); out.why1 = title; continue; }
+        var v2 = hit(title, VAC2_WORDS);
+        if (v2 && isSem2Zone && !out.semEnd2) { out.semEnd2 = minus1(ds); out.why2 = title; }
+    }
+    return out;
+}
 function calendarProfileInfo(calendar) {
     var keys = Object.keys(calendar && typeof calendar === 'object' ? calendar : {}).filter(function(k){ return /^\d{4}-\d{2}-\d{2}$/.test(k); }).sort();
     if (keys.length === 0) return { rocYear:null, first:'', last:'', needsUpdate:true, expired:true };
@@ -4449,6 +4487,8 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
         classSize: parseInt(_sl.get('hw5ren:classSize') || '40', 10) || 40,
         semStart1: _sl.get('hw5ren:semStart1') || '',
         semStart2: _sl.get('hw5ren:semStart2') || '',
+        semEnd1: _sl.get('hw5ren:semEnd1') || '',
+        semEnd2: _sl.get('hw5ren:semEnd2') || '',
         schoolCalendar: safeJSON(_sl.get('hw5ren:schoolCal:' + activeClassId) || _sl.get('hw5ren:schoolCal') || '{}', {}),
         schoolEvents: normalizeSchoolEventStore(safeJSON(_sl.get('hw5ren:schoolEvents:' + activeClassId) || '{}', {})),
         officerPresets: safeJSON(_sl.get('hw5ren:officerPresets') || '[]', []),
@@ -4653,6 +4693,8 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
     setSetting('hw5ren:classSize', settings.classSize || snapshot.classSize);
     setSetting('hw5ren:semStart1', settings.semStart1);
     setSetting('hw5ren:semStart2', settings.semStart2);
+    setSetting('hw5ren:semEnd1', settings.semEnd1);
+    setSetting('hw5ren:semEnd2', settings.semEnd2);
     setSetting('hw5ren:schoolCal', settings.schoolCalendar);
     if (settings.schoolCalendar) setSetting('hw5ren:schoolCal:' + targetClassKey, settings.schoolCalendar);
     if (settings.schoolEvents) setSetting('hw5ren:schoolEvents:' + targetClassKey, normalizeSchoolEventStore(settings.schoolEvents));
@@ -5023,7 +5065,7 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
   );
 }
 
-function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, saveSettingsAtomic, className, setClassName, schoolName, setSchoolName, schoolYear, setSchoolYear, semStart1, setSemStart1, semStart2, setSemStart2, classSize, setClassSize, officers, saveOfficers, officerPresets, setOfficerPresets, onClose, isNerv, idbKeys, idbGet, idbDelete, openDB, DB_STORE, classes, addClass, firebaseUid, checkCurrentArchive, startSchoolYearTransition, onOpenArchive }) {
+function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, saveSettingsAtomic, className, setClassName, schoolName, setSchoolName, schoolYear, setSchoolYear, semStart1, setSemStart1, semStart2, setSemStart2, semEnd1, semEnd2, schoolCalendar, classSize, setClassSize, officers, saveOfficers, officerPresets, setOfficerPresets, onClose, isNerv, idbKeys, idbGet, idbDelete, openDB, DB_STORE, classes, addClass, firebaseUid, checkCurrentArchive, startSchoolYearTransition, onOpenArchive }) {
     var [showAddClass, setShowAddClass] = React.useState(false);
     var [newYear, setNewYear] = React.useState(String(new Date().getFullYear()));
     var [newSchool, setNewSchool] = React.useState("");
@@ -5143,6 +5185,9 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
     const [draftClassSize, setDraftClassSize] = useState(classSize || 40);
     const [draftSemStart1, setDraftSemStart1] = useState(semStart1 || '');
     const [draftSemStart2, setDraftSemStart2] = useState(semStart2 || '');
+    const [draftSemEnd1, setDraftSemEnd1] = useState(semEnd1 || '');
+    const [draftSemEnd2, setDraftSemEnd2] = useState(semEnd2 || '');
+    const [semDetectMsg, setSemDetectMsg] = useState('');
     const [saved, setSaved] = useState(false);
     const [clearModal, setClearModal] = useState(false);
     const [settingsTab, setSettingsTab] = useState('class'); // 'class' | 'group' | 'officer'
@@ -5175,7 +5220,9 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                     var data = JSON.parse(raw);
                     var slips = data.slips || [];
                     if (!slips.length) continue;
-                    var ds = k.replace('day:','');
+                    // 修正：鍵值可能帶班級前綴（{學年}_{班名}:day:YYYY-MM-DD），
+                    // 用 replace('day:','') 只會去掉 day: 而留下前綴，導致月份標題變成「2026_五年月」
+                    var ds = k.slice(k.lastIndexOf('day:') + 4);
                     var mo = ds.substring(0,7); // YYYY-MM
                     if (!byMonth[mo]) byMonth[mo] = [];
                     byMonth[mo].push({ date: ds, slips: slips.map(function(s){ return { name: s.name, paid: new Set(s.paid||[]) }; }) });
@@ -5266,6 +5313,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
         var ok = await saveSettingsAtomic({
             className: draftClass.trim(), schoolName: draftSchool.trim(), schoolYear: draftYear.trim(),
             semStart1: draftSemStart1.trim(), semStart2: draftSemStart2.trim(),
+            semEnd1: draftSemEnd1.trim(), semEnd2: draftSemEnd2.trim(),
             classSize: Math.max(1, parseInt(draftClassSize, 10) || 40),
             groups: JSON.parse(JSON.stringify(draft)), groupVersions: nextVersions
         });
@@ -5399,7 +5447,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                 React.createElement("button", { type:"button", onClick:openYearTransitionWizard, style:{width:"100%",padding:"11px",border:"none",borderRadius:10,background:nerv?"#ff6600":"#2e7d45",color:"#fff",fontSize:14,fontWeight:800,cursor:"pointer"} },
                     "開始學年度轉換")),
             React.createElement("div", { style: { background: nerv ? "rgba(255,102,0,.06)" : "#f0f7ff", borderRadius: nerv ? 4 : 14, padding: "16px", marginBottom: 16 } },
-                React.createElement("div", { style: { fontSize: 14, fontWeight: 800, color: nerv ? "#ff8844" : "#1e3a5f", marginBottom: 12 } }, nerv ? "// SEMESTER DATES //" : "\uD83D\uDCC5 \u5B78\u671F\u958B\u59CB\u65E5\u671F"),
+                React.createElement("div", { style: { fontSize: 14, fontWeight: 800, color: nerv ? "#ff8844" : "#1e3a5f", marginBottom: 12 } }, nerv ? "// SEMESTER DATES //" : "\uD83D\uDCC5 \u5B78\u671F\u8D77\u8A16\u65E5\u671F"),
                 React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap" } },
                     React.createElement("div", { style: { flex: 1, minWidth: 140 } },
                         React.createElement("label", { style: lbl }, nerv ? "// SEM-1 START //" : "\u4E0A\u5B78\u671F\u958B\u59CB"),
@@ -5407,6 +5455,28 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                     React.createElement("div", { style: { flex: 1, minWidth: 140 } },
                         React.createElement("label", { style: lbl }, nerv ? "// SEM-2 START //" : "\u4E0B\u5B78\u671F\u958B\u59CB"),
                         React.createElement("input", { type: "date", style: inp, value: draftSemStart2, onChange: function(e){ setDraftSemStart2(e.target.value); } }))),
+                React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 } },
+                    React.createElement("div", { style: { flex: 1, minWidth: 140 } },
+                        React.createElement("label", { style: lbl }, nerv ? "// SEM-1 END //" : "\u4E0A\u5B78\u671F\u7D50\u675F"),
+                        React.createElement("input", { type: "date", style: inp, value: draftSemEnd1, onChange: function(e){ setDraftSemEnd1(e.target.value); setSemDetectMsg(''); } })),
+                    React.createElement("div", { style: { flex: 1, minWidth: 140 } },
+                        React.createElement("label", { style: lbl }, nerv ? "// SEM-2 END //" : "\u4E0B\u5B78\u671F\u7D50\u675F"),
+                        React.createElement("input", { type: "date", style: inp, value: draftSemEnd2, onChange: function(e){ setDraftSemEnd2(e.target.value); setSemDetectMsg(''); } }))),
+                React.createElement("button", { type: "button",
+                    onClick: function() {
+                        var r = detectSemesterEnds(schoolCalendar);
+                        var got = [];
+                        if (r.semEnd1) { setDraftSemEnd1(r.semEnd1); got.push('上學期 ' + r.semEnd1 + (r.why1 ? '（' + r.why1 + '）' : '')); }
+                        if (r.semEnd2) { setDraftSemEnd2(r.semEnd2); got.push('下學期 ' + r.semEnd2 + (r.why2 ? '（' + r.why2 + '）' : '')); }
+                        setSemDetectMsg(got.length
+                            ? '✅ 已從行事曆帶入：' + got.join('、') + '，確認後請按最下方「儲存設定」'
+                            : '⚠️ 行事曆中找不到休業式／結業式／寒暑假開始，請手動填寫');
+                    },
+                    style: { width: "100%", marginTop: 10, padding: "10px", minHeight: 44, border: "none", borderRadius: 10,
+                        background: nerv ? "rgba(255,102,0,.18)" : "#e3f0ff", color: nerv ? "#ff8844" : "#1e3a5f",
+                        fontSize: 13, fontWeight: 800, cursor: "pointer" }
+                }, "\uD83D\uDD0D \u5F9E\u884C\u4E8B\u66C6\u81EA\u52D5\u5075\u6E2C\u7D50\u675F\u65E5"),
+                semDetectMsg && React.createElement("p", { style: { fontSize: 11, lineHeight: 1.6, marginTop: 8, color: semDetectMsg.indexOf('✅') === 0 ? (nerv ? "#88ff88" : "#2e7d45") : (nerv ? "#ffaa66" : "#c62828") } }, semDetectMsg),
                 React.createElement("p", { style: { fontSize: 11, color: nerv ? "rgba(255,102,0,.5)" : "#aab8cc", marginTop: 8 } }, nerv ? "// \u7528\u65BC\u8F14\u5C0E\u7D00\u9304\u5468\u6B21\u8A08\u7B97" : "\u8A2D\u5B9A\u5F8C\u53EF\u5728\u8F14\u5C0E\u7D00\u9304\u4F9D\u300C\u7B2C\u5E7E\u9031\u300D\u6253\u5305\u5319\u51FA")),
             React.createElement("div", { style: { background: nerv ? "rgba(255,102,0,.06)" : "#fff3e0", borderRadius: nerv ? 4 : 14, padding: "16px", marginBottom: 16 } },
                 React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: slipHistOpen ? 14 : 0, cursor: "pointer" },
@@ -5792,6 +5862,8 @@ function App() {
     // 功能3：學期開始日（用於計算周次）
     const [semStart1, setSemStart1] = useState(() => safeGet("hw5ren:semStart1") || "");
     const [semStart2, setSemStart2] = useState(() => safeGet("hw5ren:semStart2") || "");
+    const [semEnd1, setSemEnd1] = useState(() => safeGet("hw5ren:semEnd1") || "");
+    const [semEnd2, setSemEnd2] = useState(() => safeGet("hw5ren:semEnd2") || "");
     const [classSize, setClassSize] = useState(() => parseInt(safeGet("hw5ren:classSize") || "40") || 40);
     // 幹部紀錄：{ "1": [{role, seat}], "2": [{role, seat}] }（key 為學期 1/2）
     const [officers, setOfficers] = useState(() => {
@@ -5922,6 +5994,8 @@ function App() {
             classSize:  cs  !== undefined ? cs  : (parseInt(_sl.get('hw5ren:classSize') || '',10) || classSize),
             semStart1:  ss1 !== undefined ? ss1 : (_sl.get('hw5ren:semStart1') || semStart1),
             semStart2:  ss2 !== undefined ? ss2 : (_sl.get('hw5ren:semStart2') || semStart2),
+            semEnd1:    _sl.get('hw5ren:semEnd1') || semEnd1 || '',
+            semEnd2:    _sl.get('hw5ren:semEnd2') || semEnd2 || '',
             schoolCalendar: cal !== undefined ? cal : safeJSON((localActiveClass && _sl.get('hw5ren:schoolCal:' + localActiveClass)) || _sl.get('hw5ren:schoolCal') || '{}', schoolCalendar),
             appVersion: APP_VERSION,
             updatedAt: new Date().toISOString()
@@ -5977,6 +6051,8 @@ function App() {
             if (value.classSize !== undefined) { setClassSize(parseInt(value.classSize,10) || 40); _sl.set('hw5ren:classSize', String(parseInt(value.classSize,10) || 40)); }
             if (value.semStart1 !== undefined) { setSemStart1(value.semStart1 || ''); _sl.set('hw5ren:semStart1', value.semStart1 || ''); }
             if (value.semStart2 !== undefined) { setSemStart2(value.semStart2 || ''); _sl.set('hw5ren:semStart2', value.semStart2 || ''); }
+            if (value.semEnd1 !== undefined) { setSemEnd1(value.semEnd1 || ''); _sl.set('hw5ren:semEnd1', value.semEnd1 || ''); }
+            if (value.semEnd2 !== undefined) { setSemEnd2(value.semEnd2 || ''); _sl.set('hw5ren:semEnd2', value.semEnd2 || ''); }
             return;
         }
         if (key.indexOf('groupVersions:') === 0) {
@@ -6049,23 +6125,27 @@ function App() {
                 found = true;
                 return Object.assign({}, c, {
                     year:next.schoolYear, school:next.schoolName, className:next.className,
-                    classSize:next.classSize, semStart1:next.semStart1, semStart2:next.semStart2
+                    classSize:next.classSize, semStart1:next.semStart1, semStart2:next.semStart2,
+                    semEnd1:next.semEnd1 || '', semEnd2:next.semEnd2 || ''
                 });
             });
             if (!found) updatedClasses.push({
                 id:cid, year:next.schoolYear, school:next.schoolName, className:next.className,
                 classSize:next.classSize, semStart1:next.semStart1, semStart2:next.semStart2,
+                semEnd1:next.semEnd1 || '', semEnd2:next.semEnd2 || '',
                 createdAt:new Date().toLocaleDateString("zh-TW")
             });
 
             setClassName(next.className); setSchoolName(next.schoolName); setSchoolYear(next.schoolYear);
             setSemStart1(next.semStart1); setSemStart2(next.semStart2); setClassSize(next.classSize);
+            setSemEnd1(next.semEnd1 || ''); setSemEnd2(next.semEnd2 || '');
             setGroups(next.groups); setGroupVersions(next.groupVersions); setClasses(updatedClasses);
             try { window._fallbackGroups = next.groups; } catch(e) {}
 
             _sl.set("hw5ren:className", next.className); _sl.set("hw5ren:school", next.schoolName);
             _sl.set("hw5ren:year", next.schoolYear); _sl.set("hw5ren:semStart1", next.semStart1);
             _sl.set("hw5ren:semStart2", next.semStart2); _sl.set("hw5ren:classSize", String(next.classSize));
+            _sl.set("hw5ren:semEnd1", next.semEnd1 || ''); _sl.set("hw5ren:semEnd2", next.semEnd2 || '');
             _sl.set("hw5ren:classes", JSON.stringify(updatedClasses));
             _sl.set("hw5ren:groups", JSON.stringify(next.groups));
             _sl.set("hw5ren:groups:" + cid, JSON.stringify(next.groups));
@@ -6111,6 +6191,8 @@ function App() {
         if (cls.classSize) { setClassSize(parseInt(cls.classSize,10) || 40); _sl.set('hw5ren:classSize', String(parseInt(cls.classSize,10) || 40)); }
         if (cls.semStart1 !== undefined) { setSemStart1(cls.semStart1 || ''); _sl.set('hw5ren:semStart1', cls.semStart1 || ''); }
         if (cls.semStart2 !== undefined) { setSemStart2(cls.semStart2 || ''); _sl.set('hw5ren:semStart2', cls.semStart2 || ''); }
+        setSemEnd1(cls.semEnd1 || ''); _sl.set('hw5ren:semEnd1', cls.semEnd1 || '');
+        setSemEnd2(cls.semEnd2 || ''); _sl.set('hw5ren:semEnd2', cls.semEnd2 || '');
         try {
             var classCalRaw = _sl.get('hw5ren:schoolCal:' + cls.id) || _sl.get('hw5ren:schoolCal');
             var classCal = classCalRaw ? JSON.parse(classCalRaw) : {};
@@ -6244,6 +6326,7 @@ function App() {
         var newClass = {
             id:id, year:targetYear, school:targetSchool, className:targetClassName,
             classSize:targetClassSize, semStart1:targetSem1, semStart2:targetSem2,
+            semEnd1:'', semEnd2:'',
             createdAt:new Date().toLocaleDateString('zh-TW'), transitionedFrom:currentClassKey(),
             transitionedFromYear:String(schoolYear || ''), transitionedAt:new Date().toISOString()
         };
@@ -6257,12 +6340,14 @@ function App() {
         setClasses(updatedClasses); setActiveClassId(id);
         setClassName(targetClassName); setSchoolName(targetSchool); setSchoolYear(targetYear);
         setClassSize(targetClassSize); setSemStart1(targetSem1); setSemStart2(targetSem2);
+        setSemEnd1(''); setSemEnd2('');
         setGroups(nextGroups); setGroupVersions(nextVersions); setOfficers(nextOfficers); setSchoolCalendar(calendar); setSchoolEventStore(nextSchoolEventStore); setSchoolWebsiteInput(nextSchoolEventStore.profile.schoolUrl || '');
         try { window._fallbackGroups = nextGroups; } catch(eFallback) {}
         _sl.set('hw5ren:activeClass', id);
         _sl.set('hw5ren:classes', JSON.stringify(updatedClasses));
         _sl.set('hw5ren:className', targetClassName); _sl.set('hw5ren:school', targetSchool); _sl.set('hw5ren:year', targetYear);
         _sl.set('hw5ren:classSize', String(targetClassSize)); _sl.set('hw5ren:semStart1', targetSem1); _sl.set('hw5ren:semStart2', targetSem2);
+        _sl.set('hw5ren:semEnd1', ''); _sl.set('hw5ren:semEnd2', '');
         _sl.set('hw5ren:groups', JSON.stringify(nextGroups)); _sl.set('hw5ren:groups:' + id, JSON.stringify(nextGroups));
         _sl.set('hw5ren:groupVersions:' + id, JSON.stringify(nextVersions));
         _sl.set('hw5ren:officers:' + id, JSON.stringify(nextOfficers));
@@ -6271,7 +6356,7 @@ function App() {
         var mainValue = {
             className:targetClassName, schoolName:targetSchool, schoolYear:targetYear,
             classes:updatedClasses, groups:nextGroups, classSize:targetClassSize,
-            semStart1:targetSem1, semStart2:targetSem2, schoolCalendar:calendar,
+            semStart1:targetSem1, semStart2:targetSem2, semEnd1:'', semEnd2:'', schoolCalendar:calendar,
             appVersion:APP_VERSION, updatedAt:new Date().toISOString()
         };
         markSettingsDirty('settings:main', '班級設定');
@@ -6837,6 +6922,8 @@ function App() {
                     if (savedSettings.classSize) { setClassSize(parseInt(savedSettings.classSize)||40); try { _sl.set('hw5ren:classSize', String(savedSettings.classSize)); } catch(ex) {} }
                     if (savedSettings.semStart1) { setSemStart1(savedSettings.semStart1); try { _sl.set('hw5ren:semStart1', savedSettings.semStart1); } catch(ex) {} }
                     if (savedSettings.semStart2) { setSemStart2(savedSettings.semStart2); try { _sl.set('hw5ren:semStart2', savedSettings.semStart2); } catch(ex) {} }
+                    if (savedSettings.semEnd1) { setSemEnd1(savedSettings.semEnd1); try { _sl.set('hw5ren:semEnd1', savedSettings.semEnd1); } catch(ex) {} }
+                    if (savedSettings.semEnd2) { setSemEnd2(savedSettings.semEnd2); try { _sl.set('hw5ren:semEnd2', savedSettings.semEnd2); } catch(ex) {} }
                     if (savedSettings.schoolCalendar && typeof savedSettings.schoolCalendar === 'object' && !Array.isArray(savedSettings.schoolCalendar)) {
                         var legacyCalendarCid = safeGet('hw5ren:activeClass') || activeClassId;
                         var hasClassCalendar = legacyCalendarCid && safeGet('hw5ren:schoolCal:' + legacyCalendarCid);
@@ -7174,6 +7261,8 @@ function App() {
                 classSize:parseInt(_sl.get('hw5ren:classSize') || '40',10) || 40,
                 semStart1:_sl.get('hw5ren:semStart1') || '',
                 semStart2:_sl.get('hw5ren:semStart2') || '',
+                semEnd1:_sl.get('hw5ren:semEnd1') || '',
+                semEnd2:_sl.get('hw5ren:semEnd2') || '',
                 schoolCalendar:safeJSON((localCid && _sl.get('hw5ren:schoolCal:' + localCid)) || _sl.get('hw5ren:schoolCal') || '{}', {}),
                 appVersion:APP_VERSION,
                 updatedAt:new Date().toISOString()
@@ -7358,7 +7447,7 @@ function App() {
                 state: "ok",
                 msg: (idbOk ? "📦 IDB 正常 — " : "💾 本機備援 — ")+idbDays.length+" 天資料",
                 detail: idbDays.length > 0
-                    ? "最近: "+idbDays.map(function(k){return k.replace("day:","");}).sort().slice(-3).join(", ")
+                    ? "最近: "+idbDays.map(function(k){return k.slice(k.lastIndexOf("day:") + 4);}).sort().slice(-3).join(", ")
                     : "尚無資料，請開始登記"
             });
         })();
@@ -8276,22 +8365,32 @@ function App() {
         }
         var s1raw = _sl.get('hw5ren:semStart1') || '';
         var s2raw = _sl.get('hw5ren:semStart2') || '';
+        var e1raw = _sl.get('hw5ren:semEnd1') || '';
+        var e2raw = _sl.get('hw5ren:semEnd2') || '';
         var s1 = s1raw ? effOpen(s1raw) : '';
         var s2 = s2raw ? effOpen(s2raw) : '';
         var sections = [];
         if (s1) {
             var s1Mon = toMonday(s1);
-            var s1End;
-            if (s2) { s1End = wpAddDays(toMonday(s2), -7); }
-            else { var y1 = +s1.split('-')[0]; s1End = lastMondayOnOrBefore(y1 + 1, 0, 20); } // 缺下學期日 → 概略到隔年1月
-            sections.push({ key:'sem1', label:'上學期', openDay:s1, rangeStart:s1, rangeEnd:(s2 || wpAddDays(s1End, 7)), weeks:weekList(s1Mon, s1End) });
+            var s1End, s1RangeEnd;
+            if (e1raw) { s1End = toMonday(e1raw); s1RangeEnd = wpAddDays(e1raw, 1); }
+            else if (s2) { s1End = wpAddDays(toMonday(s2), -7); s1RangeEnd = s2; }
+            else { var y1 = +s1.split('-')[0]; s1End = lastMondayOnOrBefore(y1 + 1, 0, 20); s1RangeEnd = wpAddDays(s1End, 7); }
+            if (s1End < s1Mon) s1End = s1Mon;
+            sections.push({ key:'sem1', label:'上學期', openDay:s1, rangeStart:s1, rangeEnd:s1RangeEnd, weeks:weekList(s1Mon, s1End) });
         }
         if (s2) {
             var s2Mon = toMonday(s2);
             var y2 = +s2.split('-')[0];
-            var s2End = lastMondayOnOrBefore(y2, 6, 31); // 該年 7/31 前最後一個整週
-            if (s2End < s2Mon) s2End = lastMondayOnOrBefore(y2, 7, 31);
-            sections.push({ key:'sem2', label:'下學期', openDay:s2, rangeStart:s2, rangeEnd:(y2 + '-08-01'), weeks:weekList(s2Mon, s2End) });
+            var s2End, s2RangeEnd;
+            if (e2raw) { s2End = toMonday(e2raw); s2RangeEnd = wpAddDays(e2raw, 1); }
+            else {
+                s2End = lastMondayOnOrBefore(y2, 6, 31); // 該年 7/31 前最後一個整週
+                if (s2End < s2Mon) s2End = lastMondayOnOrBefore(y2, 7, 31);
+                s2RangeEnd = y2 + '-08-01';
+            }
+            if (s2End < s2Mon) s2End = s2Mon;
+            sections.push({ key:'sem2', label:'下學期', openDay:s2, rangeStart:s2, rangeEnd:s2RangeEnd, weeks:weekList(s2Mon, s2End) });
         }
         return sections;
     }
@@ -11543,7 +11642,7 @@ function App() {
         ),
         /* wpInputOpen 已廢棄，改由 hwpicker 處理 */
         counselView && (React.createElement(CounselView, { date: counselDate, records: counselRecords, onSave: saveCounselRecord, onClose: () => setCounselView(false), isNerv: isNerv, allMembers: ALL_MEMBERS, groups: groups, fmtDate: fmtDate })),
-        view === "settings" && (React.createElement(SettingsView, { groups: groups, saveGroups: saveGroups, groupVersions: groupVersions, saveGroupVersions: saveGroupVersions, saveSettingsAtomic: saveSettingsAtomic, className: className, setClassName: (v) => { setClassName(v); _sl.set("hw5ren:className", v); saveSettingsToFirebase(v, undefined, undefined, undefined); }, schoolName: schoolName, setSchoolName: (v) => { setSchoolName(v); _sl.set("hw5ren:school", v); saveSettingsToFirebase(undefined, v, undefined, undefined); }, schoolYear: schoolYear, setSchoolYear: (v) => { setSchoolYear(v); _sl.set("hw5ren:year", v); saveSettingsToFirebase(undefined, undefined, v, undefined); }, semStart1: semStart1, setSemStart1: (v) => { setSemStart1(v); _sl.set("hw5ren:semStart1", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, v, undefined); }, semStart2: semStart2, setSemStart2: (v) => { setSemStart2(v); _sl.set("hw5ren:semStart2", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, undefined, v); }, classSize: classSize, setClassSize: (v) => { setClassSize(v); _sl.set("hw5ren:classSize", String(v)); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, v, undefined, undefined); }, officers: officers, saveOfficers: saveOfficers, officerPresets: officerPresets, setOfficerPresets: (v) => { setOfficerPresets(v); _sl.set("hw5ren:officerPresets", JSON.stringify(v)); }, onClose: () => setView("month"), isNerv: isNerv, idbKeys: idbKeys, idbGet: idbGet, idbDelete: idbDelete, openDB: openDB, DB_STORE: DB_STORE, classes: classes, addClass: addClass, firebaseUid: firebaseUid, checkCurrentArchive:checkCurrentArchive, startSchoolYearTransition:startSchoolYearTransition, onOpenArchive:function(){setView("archive");} })),
+        view === "settings" && (React.createElement(SettingsView, { groups: groups, saveGroups: saveGroups, groupVersions: groupVersions, saveGroupVersions: saveGroupVersions, saveSettingsAtomic: saveSettingsAtomic, className: className, setClassName: (v) => { setClassName(v); _sl.set("hw5ren:className", v); saveSettingsToFirebase(v, undefined, undefined, undefined); }, schoolName: schoolName, setSchoolName: (v) => { setSchoolName(v); _sl.set("hw5ren:school", v); saveSettingsToFirebase(undefined, v, undefined, undefined); }, schoolYear: schoolYear, setSchoolYear: (v) => { setSchoolYear(v); _sl.set("hw5ren:year", v); saveSettingsToFirebase(undefined, undefined, v, undefined); }, semStart1: semStart1, setSemStart1: (v) => { setSemStart1(v); _sl.set("hw5ren:semStart1", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, v, undefined); }, semStart2: semStart2, setSemStart2: (v) => { setSemStart2(v); _sl.set("hw5ren:semStart2", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, undefined, v); }, semEnd1: semEnd1, semEnd2: semEnd2, schoolCalendar: schoolCalendar, classSize: classSize, setClassSize: (v) => { setClassSize(v); _sl.set("hw5ren:classSize", String(v)); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, v, undefined, undefined); }, officers: officers, saveOfficers: saveOfficers, officerPresets: officerPresets, setOfficerPresets: (v) => { setOfficerPresets(v); _sl.set("hw5ren:officerPresets", JSON.stringify(v)); }, onClose: () => setView("month"), isNerv: isNerv, idbKeys: idbKeys, idbGet: idbGet, idbDelete: idbDelete, openDB: openDB, DB_STORE: DB_STORE, classes: classes, addClass: addClass, firebaseUid: firebaseUid, checkCurrentArchive:checkCurrentArchive, startSchoolYearTransition:startSchoolYearTransition, onOpenArchive:function(){setView("archive");} })),
         view === "archive" && (React.createElement(ArchiveView, { idbKeys: idbKeys, idbGet: idbGet, idbSet: idbSet, groups: groups, schoolYear: schoolYear, className: className, schoolName: schoolName, classes: classes, yearRecords: yearRecords, isNerv: isNerv, firebaseUid: firebaseUid })))));
 }
 
