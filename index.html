@@ -5448,20 +5448,35 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                     "開始學年度轉換")),
             React.createElement("div", { style: { background: nerv ? "rgba(255,102,0,.06)" : "#f0f7ff", borderRadius: nerv ? 4 : 14, padding: "16px", marginBottom: 16 } },
                 React.createElement("div", { style: { fontSize: 14, fontWeight: 800, color: nerv ? "#ff8844" : "#1e3a5f", marginBottom: 12 } }, nerv ? "// SEMESTER DATES //" : "\uD83D\uDCC5 \u5B78\u671F\u8D77\u8A16\u65E5\u671F"),
-                React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap" } },
-                    React.createElement("div", { style: { flex: 1, minWidth: 140 } },
-                        React.createElement("label", { style: lbl }, nerv ? "// SEM-1 START //" : "\u4E0A\u5B78\u671F\u958B\u59CB"),
-                        React.createElement("input", { type: "date", style: inp, value: draftSemStart1, onChange: function(e){ setDraftSemStart1(e.target.value); } })),
-                    React.createElement("div", { style: { flex: 1, minWidth: 140 } },
-                        React.createElement("label", { style: lbl }, nerv ? "// SEM-2 START //" : "\u4E0B\u5B78\u671F\u958B\u59CB"),
-                        React.createElement("input", { type: "date", style: inp, value: draftSemStart2, onChange: function(e){ setDraftSemStart2(e.target.value); } }))),
-                React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 } },
-                    React.createElement("div", { style: { flex: 1, minWidth: 140 } },
-                        React.createElement("label", { style: lbl }, nerv ? "// SEM-1 END //" : "\u4E0A\u5B78\u671F\u7D50\u675F"),
-                        React.createElement("input", { type: "date", style: inp, value: draftSemEnd1, onChange: function(e){ setDraftSemEnd1(e.target.value); setSemDetectMsg(''); } })),
-                    React.createElement("div", { style: { flex: 1, minWidth: 140 } },
-                        React.createElement("label", { style: lbl }, nerv ? "// SEM-2 END //" : "\u4E0B\u5B78\u671F\u7D50\u675F"),
-                        React.createElement("input", { type: "date", style: inp, value: draftSemEnd2, onChange: function(e){ setDraftSemEnd2(e.target.value); setSemDetectMsg(''); } }))),
+                (function(){
+                    var semCard = { background: nerv ? "rgba(255,102,0,.05)" : "#ffffff", border: nerv ? "1px solid rgba(255,102,0,.25)" : "1px solid #d9e7f7", borderRadius: nerv ? 4 : 12, padding: "12px", marginBottom: 10 };
+                    var semTitle = { fontSize: 13, fontWeight: 800, color: nerv ? "#ff8844" : "#1e3a5f", marginBottom: 10 };
+                    var arrowSt = { flex: "0 0 auto", fontSize: 13, color: nerv ? "rgba(255,102,0,.6)" : "#8fa9c9", alignSelf: "center", marginTop: 14 };
+                    function weekCount(s, e) {
+                        if (!s || !e || s > e) return "";
+                        function mon(ds){ var x = new Date(ds); var w = x.getDay(); x.setDate(x.getDate() + (w === 0 ? -6 : 1 - w)); return x; }
+                        var n = Math.round((mon(e) - mon(s)) / 604800000) + 1;
+                        return n > 0 ? ("\u5171 " + n + " \u9031") : "";
+                    }
+                    function row(title, sVal, sSet, eVal, eSet) {
+                        var wc = weekCount(sVal, eVal);
+                        return React.createElement("div", { style: semCard },
+                            React.createElement("div", { style: { display: "flex", alignItems: "center" } },
+                                React.createElement("span", { style: semTitle }, title),
+                                wc && React.createElement("span", { style: { marginLeft: "auto", fontSize: 11, fontWeight: 700, color: nerv ? "rgba(255,102,0,.7)" : "#4a7fb5", marginBottom: 10 } }, wc)),
+                            React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "flex-start" } },
+                                React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                                    React.createElement("label", { style: lbl }, nerv ? "// START //" : "\u958B\u59CB"),
+                                    React.createElement("input", { type: "date", style: inp, value: sVal, onChange: function(e){ sSet(e.target.value); } })),
+                                React.createElement("span", { style: arrowSt }, "\u2192"),
+                                React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                                    React.createElement("label", { style: lbl }, nerv ? "// END //" : "\u7D50\u675F"),
+                                    React.createElement("input", { type: "date", style: inp, value: eVal, onChange: function(e){ eSet(e.target.value); setSemDetectMsg(''); } }))));
+                    }
+                    return React.createElement(React.Fragment, null,
+                        row(nerv ? "// SEM-1 //" : "\u4E0A\u5B78\u671F", draftSemStart1, setDraftSemStart1, draftSemEnd1, setDraftSemEnd1),
+                        row(nerv ? "// SEM-2 //" : "\u4E0B\u5B78\u671F", draftSemStart2, setDraftSemStart2, draftSemEnd2, setDraftSemEnd2));
+                })(),
                 React.createElement("button", { type: "button",
                     onClick: function() {
                         var r = detectSemesterEnds(schoolCalendar);
