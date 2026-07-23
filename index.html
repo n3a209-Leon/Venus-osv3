@@ -5450,8 +5450,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                 React.createElement("div", { style: { fontSize: 14, fontWeight: 800, color: nerv ? "#ff8844" : "#1e3a5f", marginBottom: 12 } }, nerv ? "// SEMESTER DATES //" : "\uD83D\uDCC5 \u5B78\u671F\u8D77\u8A16\u65E5\u671F"),
                 (function(){
                     var semCard = { background: nerv ? "rgba(255,102,0,.05)" : "#ffffff", border: nerv ? "1px solid rgba(255,102,0,.25)" : "1px solid #d9e7f7", borderRadius: nerv ? 4 : 12, padding: "12px", marginBottom: 10 };
-                    var semTitle = { fontSize: 13, fontWeight: 800, color: nerv ? "#ff8844" : "#1e3a5f", marginBottom: 10 };
-                    var arrowSt = { flex: "0 0 auto", fontSize: 13, color: nerv ? "rgba(255,102,0,.6)" : "#8fa9c9", alignSelf: "center", marginTop: 14 };
+                    var semTitle = { fontSize: 13, fontWeight: 800, color: nerv ? "#ff8844" : "#1e3a5f" };
                     function weekCount(s, e) {
                         if (!s || !e || s > e) return "";
                         function mon(ds){ var x = new Date(ds); var w = x.getDay(); x.setDate(x.getDate() + (w === 0 ? -6 : 1 - w)); return x; }
@@ -5460,18 +5459,20 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                     }
                     function row(title, sVal, sSet, eVal, eSet) {
                         var wc = weekCount(sVal, eVal);
+                        var tagSt = { flex: "0 0 auto", width: 34, fontSize: 12, fontWeight: 700, color: nerv ? "#ff6600" : "#6a8aaa" };
+                        var dateSt = Object.assign({}, inp, { flex: "1 1 0%", width: "auto", minWidth: 0, maxWidth: "100%" });
+                        function dline(tag, val, set, isEnd) {
+                            return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 6 } },
+                                React.createElement("span", { style: tagSt }, tag),
+                                React.createElement("input", { type: "date", style: dateSt, value: val,
+                                    onChange: function(e){ set(e.target.value); if (isEnd) setSemDetectMsg(''); } }));
+                        }
                         return React.createElement("div", { style: semCard },
-                            React.createElement("div", { style: { display: "flex", alignItems: "center" } },
+                            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
                                 React.createElement("span", { style: semTitle }, title),
-                                wc && React.createElement("span", { style: { marginLeft: "auto", fontSize: 11, fontWeight: 700, color: nerv ? "rgba(255,102,0,.7)" : "#4a7fb5", marginBottom: 10 } }, wc)),
-                            React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "flex-start" } },
-                                React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-                                    React.createElement("label", { style: lbl }, nerv ? "// START //" : "\u958B\u59CB"),
-                                    React.createElement("input", { type: "date", style: inp, value: sVal, onChange: function(e){ sSet(e.target.value); } })),
-                                React.createElement("span", { style: arrowSt }, "\u2192"),
-                                React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-                                    React.createElement("label", { style: lbl }, nerv ? "// END //" : "\u7D50\u675F"),
-                                    React.createElement("input", { type: "date", style: inp, value: eVal, onChange: function(e){ eSet(e.target.value); setSemDetectMsg(''); } }))));
+                                wc && React.createElement("span", { style: { marginLeft: "auto", fontSize: 11, fontWeight: 700, color: nerv ? "rgba(255,102,0,.7)" : "#4a7fb5" } }, wc)),
+                            dline(nerv ? "ST" : "\u958B\u59CB", sVal, sSet, false),
+                            dline(nerv ? "ED" : "\u7D50\u675F", eVal, eSet, true));
                     }
                     return React.createElement(React.Fragment, null,
                         row(nerv ? "// SEM-1 //" : "\u4E0A\u5B78\u671F", draftSemStart1, setDraftSemStart1, draftSemEnd1, setDraftSemEnd1),
