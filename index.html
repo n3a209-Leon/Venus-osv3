@@ -40,7 +40,7 @@
         .theme-btn:hover{background:rgba(255,255,255,.28)}
 
         /* ── HEADER ── */
-        header{background:linear-gradient(135deg,#1e3a5f,#2d5986);padding:14px 20px 0;box-shadow:0 3px 12px rgba(0,0,0,.2);transition:background .3s}
+        header{background:linear-gradient(135deg,#1e3a5f,#2d5986);padding:14px 20px 0;box-shadow:0 3px 12px rgba(0,0,0,.2);transition:background .3s;position:relative;z-index:50}
         .hi{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:6px;padding-bottom:8px}
         .hi-row1{display:flex;align-items:center;gap:8px}
         .hi-row2{display:flex;align-items:center}
@@ -4124,121 +4124,6 @@ function daySummary(rows, groups) {
     }
     // ══ END SPLASH SCREEN ════════════════════════════════════════════════════
 
-    function CounselView({ date, records, onSave, onClose, isNerv, allMembers, groups, fmtDate }) {
-    const [recs, setRecs] = useState(() => records.length > 0 ? JSON.parse(JSON.stringify(records)) : [newRec(date)]);
-    const [activeIdx, setActiveIdx] = useState(0);
-    function newRec(ds) {
-        return { id: Date.now(), date: ds, period: "", type: "", students: [], summary: "", followup: "" };
-    }
-    function addRec() {
-        const r = newRec(date);
-        setRecs(p => [...p, r]);
-        setActiveIdx(recs.length);
-    }
-    function delRec(idx) {
-        if (recs.length === 1) {
-            setRecs([newRec(date)]);
-            return;
-        }
-        setRecs(p => p.filter((_, i) => i !== idx));
-        setActiveIdx(Math.max(0, idx - 1));
-    }
-    function upd(idx, field, val) {
-        setRecs(p => { const n = [...p]; n[idx] = Object.assign(Object.assign({}, n[idx]), { [field]: val }); return n; });
-    }
-    function toggleStudent(idx, n) {
-        setRecs(p => {
-            const next = [...p];
-            const s = new Set(next[idx].students || []);
-            s.has(n) ? s.delete(n) : s.add(n);
-            next[idx] = Object.assign(Object.assign({}, next[idx]), { students: [...s].sort((a, b) => a - b) });
-            return next;
-        });
-    }
-    function doSave() {
-        // 過濾掉完全空白的記錄（students、summary、type、period 全空）
-        const filtered = recs.filter(r => r.students.length || r.summary || r.type || r.period);
-        onSave(filtered);
-        onClose();
-    }
-    const nerv = isNerv;
-    const panel = nerv
-        ? { background: "#080200", border: "1px solid #ff6600", borderRadius: 4, padding: 16, marginBottom: 12 }
-        : { background: "#fff", borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: "0 4px 20px rgba(0,0,0,.08)" };
-    const lbl = nerv
-        ? { color: "#ff6600", fontFamily: "Share Tech Mono,monospace", fontSize: 11, letterSpacing: 2, marginBottom: 6, display: "block" }
-        : { fontSize: 12, fontWeight: 700, color: "#6a8aaa", letterSpacing: 1, marginBottom: 6, display: "block" };
-    const inp = nerv
-        ? { width: "100%", padding: "8px 10px", background: "rgba(255,102,0,.06)", border: "1px solid rgba(255,102,0,.4)", color: "#ff8844", borderRadius: 2, fontSize: 14, fontFamily: "Share Tech Mono,monospace", boxSizing: "border-box" }
-        : { width: "100%", padding: "8px 12px", border: "2px solid #dde5ee", borderRadius: 10, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" };
-    const rec = recs[activeIdx] || recs[0];
-    return (React.createElement("main", { style: { padding: 12, overflowY: "auto", flex: 1, position: "relative", zIndex: 2, background: 'transparent' } },
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 16 } },
-            React.createElement("button", { onClick: onClose, style: { background: nerv ? "rgba(255,102,0,.1)" : "rgba(30,58,95,.1)", border: "none", color: nerv ? "#ff6600" : "#1e3a5f", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 } }, nerv ? "◀ RETURN" : "← 返回"),
-            React.createElement("span", { style: { fontSize: 16, fontWeight: 900, color: nerv ? "#ff6600" : "#1e3a5f", flex: 1 } }, nerv ? "◈ GUIDANCE LOG" : "💬 輔導紀錄"),
-            React.createElement("span", { style: { fontSize: 12, color: nerv ? "rgba(255,102,0,.6)" : "#8a9db5", fontFamily: nerv ? "Share Tech Mono,monospace" : "inherit" } }, fmtDate(date))),
-        recs.length > 0 && (React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" } },
-            recs.map((r, i) => React.createElement("button", { key: i, onClick: () => setActiveIdx(i), style: {
-                    padding: "5px 12px", borderRadius: nerv ? 2 : 20, border: nerv ? "1px solid" : "2px solid",
-                    borderColor: activeIdx === i ? (nerv ? "#ff6600" : "#1e3a5f") : (nerv ? "rgba(255,102,0,.3)" : "#dde5ee"),
-                    background: activeIdx === i ? (nerv ? "rgba(255,102,0,.2)" : "#1e3a5f") : "transparent",
-                    color: activeIdx === i ? (nerv ? "#ff6600" : "#fff") : (nerv ? "rgba(255,102,0,.6)" : "#8a9db5"),
-                    fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: nerv ? "Share Tech Mono,monospace" : "inherit"
-                } }, nerv ? "LOG-"+String(i+1).padStart(2,"0") : " 紀錄 "+(i+1))),
-            React.createElement("button", { onClick: addRec, style: { padding: "5px 12px", borderRadius: nerv ? 2 : 20, border: nerv ? "1px dashed rgba(255,102,0,.4)" : "2px dashed #c3d8ff", background: "transparent", color: nerv ? "rgba(255,102,0,.5)" : "#8a9db5", fontSize: 12, fontWeight: 700, cursor: "pointer" } }, nerv ? "+ LOG" : "+"))),
-        React.createElement("div", { style: panel },
-            React.createElement("label", { style: lbl }, nerv ? "// PERIOD //" : "節次"),
-            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 } }, COUNSEL_PERIODS.map(p => React.createElement("button", { key: p, onClick: () => upd(activeIdx, "period", rec.period === p ? "" : p), style: { padding: "5px 10px", borderRadius: nerv ? 2 : 8, border: nerv ? "1px solid" : "2px solid",
-                    borderColor: rec.period === p ? (nerv ? "#ff6600" : "#1e3a5f") : (nerv ? "rgba(255,102,0,.3)" : "#dde5ee"),
-                    background: rec.period === p ? (nerv ? "rgba(255,102,0,.2)" : "#e8f0fe") : "transparent",
-                    color: rec.period === p ? (nerv ? "#ff6600" : "#1e3a5f") : (nerv ? "rgba(255,102,0,.5)" : "#8a9db5"),
-                    fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: nerv ? "Share Tech Mono,monospace" : "inherit"
-                } }, p))),
-            React.createElement("label", { style: lbl }, nerv ? "// CATEGORY //" : "輔導類別"),
-            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 } }, COUNSEL_TYPES.map(t => React.createElement("button", { key: t, onClick: () => upd(activeIdx, "type", rec.type === t ? "" : t), style: { padding: "5px 10px", borderRadius: nerv ? 2 : 8, border: nerv ? "1px solid" : "2px solid",
-                    borderColor: rec.type === t ? (nerv ? "#ff6600" : "#7c3aed") : (nerv ? "rgba(255,102,0,.3)" : "#dde5ee"),
-                    background: rec.type === t ? (nerv ? "rgba(255,102,0,.2)" : "#f3e8ff") : "transparent",
-                    color: rec.type === t ? (nerv ? "#ff6600" : "#7c3aed") : (nerv ? "rgba(255,102,0,.5)" : "#8a9db5"),
-                    fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: nerv ? "Share Tech Mono,monospace" : "inherit"
-                } }, t))),
-            React.createElement("label", { style: lbl }, nerv ? "// STUDENTS //" : "學生座號（可多選）"),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(8,1fr)", gap: 4, marginBottom: 14 } }, allMembers.map(n => {
-                const sel = (rec.students || []).includes(n);
-                const grp = groups.find(g => g.members.includes(n));
-                return (React.createElement("button", { key: n, onClick: () => toggleStudent(activeIdx, n), style: { padding: "5px 0", fontSize: 11, fontWeight: sel ? 800 : 400,
-                        border: nerv ? "1px solid" : "1.5px solid",
-                        borderColor: sel ? (nerv ? "#ff6600" : "#1e3a5f") : (nerv ? "rgba(255,102,0,.2)" : "#dde5ee"),
-                        borderRadius: nerv ? 2 : 6,
-                        background: sel ? (nerv ? "rgba(255,102,0,.25)" : "#e8f0fe") : "transparent",
-                        color: sel ? (nerv ? "#ff6600" : "#1e3a5f") : (nerv ? "rgba(255,102,0,.4)" : "#aaa"),
-                        cursor: "pointer", position: "relative",
-                        fontFamily: nerv ? "Share Tech Mono,monospace" : "inherit"
-                    } },
-                    n,
-                    n === (grp === null || grp === void 0 ? void 0 : grp.leader) && React.createElement("span", { style: { position: "absolute", top: -3, right: -1, fontSize: 7, background: "#e53935", color: "#fff", borderRadius: 2, padding: "0 1px" } }, "\u9577")));
-            })),
-            React.createElement("label", { style: lbl }, nerv ? "// SUMMARY //" : "事件摘要（可空白）"),
-            React.createElement("textarea", { value: rec.summary || "", onChange: e => upd(activeIdx, "summary", e.target.value), placeholder: nerv ? "[ INPUT OPTIONAL ]" : "可空白，簡短描述即可", rows: 3, style: Object.assign(Object.assign({}, inp), { resize: "vertical", marginBottom: 14, lineHeight: 1.6 }) }),
-            React.createElement("label", { style: lbl }, nerv ? "// FOLLOW-UP //" : "後續處理"),
-            React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 6 } }, COUNSEL_FOLLOWUP.map(f => React.createElement("button", { key: f, onClick: () => upd(activeIdx, "followup", rec.followup === f ? "" : f), style: { flex: 1, padding: "8px 0", borderRadius: nerv ? 2 : 10, border: nerv ? "1px solid" : "2px solid",
-                    borderColor: rec.followup === f ? (nerv ? "#ffcc00" : "#f59e0b") : (nerv ? "rgba(255,102,0,.3)" : "#dde5ee"),
-                    background: rec.followup === f ? (nerv ? "rgba(255,204,0,.15)" : "#fef3c7") : "transparent",
-                    color: rec.followup === f ? (nerv ? "#ffcc00" : "#b45309") : (nerv ? "rgba(255,102,0,.5)" : "#8a9db5"),
-                    fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: nerv ? "Share Tech Mono,monospace" : "inherit"
-                } }, f)))),
-        recs.length > 0 && (React.createElement("button", { onClick: () => delRec(activeIdx), style: { display: "block", width: "100%", padding: 10, marginBottom: 12,
-                background: "transparent", border: nerv ? "1px solid rgba(255,0,0,.3)" : "1px solid #ffcdd2",
-                color: nerv ? "rgba(255,0,0,.6)" : "#ef9a9a", borderRadius: nerv ? 2 : 10, cursor: "pointer", fontSize: 12, fontWeight: 700 } }, nerv ? "× DELETE LOG" : "× 刪除此筆")),
-        React.createElement("button", { onClick: doSave, style: { display: "block", width: "100%", padding: 14,
-                background: nerv ? "rgba(255,102,0,.15)" : "#1e3a5f",
-                border: nerv ? "1px solid #ff6600" : "none",
-                color: nerv ? "#ff6600" : "#fff",
-                borderRadius: nerv ? 4 : 16, cursor: "pointer", fontSize: 15, fontWeight: 900,
-                letterSpacing: nerv ? 3 : 1, fontFamily: nerv ? "Share Tech Mono,monospace" : "inherit",
-                boxShadow: nerv ? "0 0 12px rgba(255,102,0,.3)" : "0 4px 12px rgba(30,58,95,.25)",
-                marginBottom: 32
-            } }, nerv ? "// SAVE LOG //" : "儲存輔導紀錄")));
-}
 // ── Settings View Component ───────────────────────────────────────────────────
 
 // ══════════════════════════════════════════════════
@@ -4261,6 +4146,29 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
   const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'roster'
   const [fsLoaded, setFsLoaded] = useState(false); // 是否已從 Firestore 讀取
   const [archiveMeta, setArchiveMeta] = useState(null); // { archivedAt, source } 目前學年封存狀態
+  // 歷年檔案清單：以實際班級清單為主（classes 有雲端備份），再併入舊版 yearRecords
+  var archiveList = (function() {
+    var out = [], seen = {};
+    function push(year, school, cls, savedAt, isCurrent) {
+      var y = String(year || ''), c = String(cls || '');
+      if (!y && !c) return;
+      var k = y + '|' + String(school || '') + '|' + c;
+      if (seen[k]) { if (isCurrent) seen[k].isCurrent = true; return; }
+      var rec = { year:y, school:school || '', className:c, savedAt:savedAt || '', isCurrent:!!isCurrent };
+      seen[k] = rec; out.push(rec);
+    }
+    (classes || []).forEach(function(c) {
+      var cur = String(c.year) === String(schoolYear) && c.className === className;
+      push(c.year, c.school, c.className, c.createdAt, cur);
+    });
+    (yearRecords || []).forEach(function(r) { push(r.year, r.school, r.className, r.savedAt, false); });
+    if (!out.length) push(schoolYear || new Date().getFullYear(), schoolName || '', className || '', '', true);
+    out.sort(function(a, b) {
+      if (a.year !== b.year) return String(b.year).localeCompare(String(a.year));
+      return String(a.className).localeCompare(String(b.className));
+    });
+    return out;
+  })();
   const [archiving, setArchiving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [cleaningArchives, setCleaningArchives] = useState(false);
@@ -4906,20 +4814,14 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
     // ── 歷年學校/班級記錄卡片 ──
     React.createElement("div", { style:{marginBottom:16} },
       React.createElement("div", { style:{fontWeight:700,fontSize:13,color:isNerv?'#ff9944':'#888',marginBottom:8,letterSpacing:isNerv?2:0} },
-        isNerv ? "// HISTORICAL RECORDS //" : "📚 歷年學校班級記錄"),
+        isNerv ? ("// HISTORICAL RECORDS (" + archiveList.length + ") //") : ("📚 歷年學校班級記錄（共 " + archiveList.length + " 筆）")),
       React.createElement("div", { style:{display:'flex',flexDirection:'column',gap:6} },
-        (yearRecords && yearRecords.length > 0 ? yearRecords : [{
-          year: schoolYear || new Date().getFullYear(),
-          school: '（目前學年）',
-          className: className || '',
-          driveFile: '-',
-          savedAt: '-'
-        }]).map((r,i) =>
+        archiveList.map((r,i) =>
           React.createElement("div", { key:i,
             style:{
               padding:'10px 14px', borderRadius:12,
-              background: String(r.year)===selYear ? (isNerv?'rgba(255,102,0,.15)':'#eef2ff') : (isNerv?'rgba(255,255,255,.04)':'#f8faff'),
-              border: String(r.year)===selYear ? (isNerv?'1px solid rgba(255,102,0,.5)':'1px solid #c0c8ff') : (isNerv?'1px solid rgba(255,255,255,.08)':'1px solid #e8ecf8'),
+              background: r.isCurrent ? (isNerv?'rgba(255,102,0,.15)':'#eef2ff') : (isNerv?'rgba(255,255,255,.04)':'#f8faff'),
+              border: r.isCurrent ? (isNerv?'1px solid rgba(255,102,0,.5)':'1px solid #c0c8ff') : (isNerv?'1px solid rgba(255,255,255,.08)':'1px solid #e8ecf8'),
               transition:'all .15s',
             }
           },
@@ -4931,17 +4833,17 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
                 React.createElement("div", { style:{fontWeight:700,fontSize:14,color:isNerv?'#ffa070':'#1e3a5f'} },
                   r.year + " 年（" + (parseInt(r.year, 10) - 1911) + " 學年度）　" + (r.school||'') + "　" + (r.className||'')),
                 React.createElement("div", { style:{fontSize:11,color:'#aaa',marginTop:2} },
-                  r.school === '（目前學年）' && archiveMeta
+                  r.isCurrent && archiveMeta
                     ? "備份：" + new Date(archiveMeta.archivedAt).toLocaleString() + "　儲存於：" + archiveMeta.source
                     : "備份：" + (r.driveFile||'-') + "　儲存於：" + (r.savedAt||'-'))
               ),
               React.createElement("div", { style:{
                 fontSize:12, fontWeight:700, padding:'4px 12px', borderRadius:20,
-                background: String(r.year)===selYear ? (isNerv?'#ff6600':'#1e3a5f') : 'transparent',
-                color: String(r.year)===selYear ? '#fff' : '#aaa',
-              }}, String(r.year)===selYear ? '✓ 目前' : '查看')
+                background: r.isCurrent ? (isNerv?'#ff6600':'#1e3a5f') : 'transparent',
+                color: r.isCurrent ? '#fff' : '#aaa',
+              }}, r.isCurrent ? '✓ 目前' : '查看')
             ),
-            r.school === '（目前學年）' && React.createElement("div", { style:{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' } },
+            r.isCurrent && React.createElement("div", { style:{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' } },
               React.createElement("button", {
                 disabled: archiving,
                 onClick: (e) => { e.stopPropagation(); archiveCurrentYear(); },
@@ -4992,7 +4894,7 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
                 onChange:importFullBackupFile, style:{display:'none'}
               })
             ),
-            r.school === '（目前學年）' && archiveHistory.length > 0 && React.createElement("div", { style:{marginTop:10,paddingTop:9,borderTop:isNerv?'1px solid rgba(255,102,0,.18)':'1px solid #e8edf5'} },
+            r.isCurrent && archiveHistory.length > 0 && React.createElement("div", { style:{marginTop:10,paddingTop:9,borderTop:isNerv?'1px solid rgba(255,102,0,.18)':'1px solid #e8edf5'} },
               React.createElement("div", { style:{fontSize:11,fontWeight:800,marginBottom:6,color:isNerv?'#ff9944':'#6a7d92'} }, '雲端保留版本（最多 3 份）'),
               React.createElement("div", { style:{display:'flex',gap:6,flexWrap:'wrap'} }, archiveHistory.map(function(entry, idx){
                 return React.createElement("button", { key:entry.archiveId, disabled:restoring, onClick:function(e){ e.stopPropagation(); restoreFromArchive(entry.archiveId); }, style:{padding:'6px 9px',borderRadius:9,border:isNerv?'1px solid rgba(255,102,0,.28)':'1px solid #d7e0ea',background:isNerv?'rgba(255,102,0,.06)':'#fff',color:isNerv?'#ff9944':'#455a64',fontSize:11,fontWeight:700,cursor:'pointer'} },
@@ -5126,7 +5028,12 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
     var [showAddClass, setShowAddClass] = React.useState(false);
     var [newYear, setNewYear] = React.useState(String(new Date().getFullYear()));
     var [newSchool, setNewSchool] = React.useState("");
-    var [newClass, setNewClass] = React.useState("");
+    var [newGrade, setNewGrade] = React.useState("");
+    var [newClassCore, setNewClassCore] = React.useState("");
+    // 班級名稱固定為「N年X班」，使用者只填 N 與 X
+    var newClass = (newGrade.trim() && newClassCore.trim())
+        ? (newGrade.trim() + "\u5E74" + newClassCore.trim() + "\u73ED")
+        : "";
     var [pendingGroupTab, setPendingGroupTab] = React.useState(false);
     function suggestedTransitionYear() {
         return nextAcademicSchoolYear(schoolYear);
@@ -5196,7 +5103,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
         }
         setShowAddClass(false);
         setNewYear(String(new Date().getFullYear()));
-        setNewSchool(""); setNewClass("");
+        setNewSchool(""); setNewGrade(""); setNewClassCore("");
         setPendingGroupTab(true);
         alert("✅ 班級已新增並切換！");
     }
@@ -5505,7 +5412,19 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                     React.createElement("label", { style: lbl }, nerv ? "// SCHOOL //" : "\u5B78\u6821\u540D\u7A31"),
                     React.createElement("input", { style: Object.assign({}, inp, { marginBottom: 10 }), value: newSchool, onChange: e => setNewSchool(e.target.value), placeholder: "\u4F8B\uFF1A\u5927\u5B89\u570B\u5C0F", maxLength: 20 }),
                     React.createElement("label", { style: lbl }, nerv ? "// CLASS NAME //" : "\u73ED\u7D1A\u540D\u7A31"),
-                    React.createElement("input", { style: Object.assign({}, inp, { marginBottom: 14 }), value: newClass, onChange: e => setNewClass(e.target.value), placeholder: "\u4F8B\uFF1A\u516D\u5E74\u7532\u73ED", maxLength: 20 }),
+                    React.createElement("div", { style: { display:"flex", alignItems:"center", gap:6, marginBottom:6 } },
+                        React.createElement("input", { style: Object.assign({}, inp, { flex:"1 1 0%", width:"auto", minWidth:0, marginBottom:0, textAlign:"center" }),
+                            value: newGrade, onFocus: selAll,
+                            onChange: e => setNewGrade(e.target.value.trim()),
+                            placeholder: "\u516D", maxLength: 3 }),
+                        React.createElement("span", { style: { flex:"0 0 auto", fontSize:15, fontWeight:800, color: nerv?"#ff8844":"#1e3a5f" } }, "\u5E74"),
+                        React.createElement("input", { style: Object.assign({}, inp, { flex:"1 1 0%", width:"auto", minWidth:0, marginBottom:0, textAlign:"center" }),
+                            value: newClassCore, onFocus: selAll,
+                            onChange: e => setNewClassCore(e.target.value.trim()),
+                            placeholder: "\u58EC", maxLength: 6 }),
+                        React.createElement("span", { style: { flex:"0 0 auto", fontSize:15, fontWeight:800, color: nerv?"#ff8844":"#1e3a5f" } }, "\u73ED")),
+                    React.createElement("p", { style: { fontSize:11, color: nerv?"rgba(255,102,0,.65)":"#8a9db5", marginBottom:14, lineHeight:1.6 } },
+                        newClass ? ("\u5B8C\u6574\u73ED\u540D\uFF1A" + newClass) : "\u53EA\u9700\u586B\u5E74\u7D1A\u8207\u73ED\u5225\uFF0C\u300C\u5E74\u300D\u300C\u73ED\u300D\u6703\u81EA\u52D5\u52A0\u4E0A"),
                     React.createElement("button", { onClick: handleAddClass, style: { width:"100%", padding:"10px", border:"none", borderRadius:10, cursor:"pointer", background: nerv?"#ff6600":"#1e3a5f", color:"#fff", fontWeight:700, fontSize:14, opacity: (!newYear.trim()||!newClass.trim()) ? 0.5 : 1 } }, nerv ? "\u25B6 DEPLOY NEW UNIT" : "\u2705 \u65B0\u589E\u4E26\u5207\u63DB\u5230\u6B64\u73ED\u7D1A"))),
             React.createElement("div", { style: Object.assign({}, panel, { background:nerv?"rgba(255,102,0,.05)":"#eef8f1", border:nerv?"1px solid rgba(255,102,0,.35)":"1px solid #b7dfc2" }) },
                 React.createElement("div", { style:{fontSize:15,fontWeight:900,color:nerv?"#ffaa44":"#246b3a",marginBottom:6} },
@@ -6646,10 +6565,6 @@ function App() {
     const [dayLate, setDayLate] = useState(new Set());
     const [dayExempt, setDayExempt] = useState({}); // { [hwName]: Set<number> }
     const [monthDays, setMonthDays] = useState({});
-    const [counselMonth, setCounselMonth] = useState({}); // { "YYYY-MM-DD": [...records] }
-    const [counselView, setCounselView] = useState(false); // 輔導頁面開啟狀態
-    const [counselDate, setCounselDate] = useState(today());
-    const [counselRecords, setCounselRecords] = useState([]); // 當日輔導記錄
     const [loading, setLoading] = useState(false);
     const [theme, setTheme] = useState(() => safeGet("hw5ren:theme") || "default");
     const [showThemeMenu, setShowThemeMenu] = useState(false);
@@ -7227,7 +7142,7 @@ function App() {
                 setDriveError('');
                 if (localSettingsDirty || getDirtySettingKeys().length > 0 || getDirtyKeys(_pfx).length > 0) scheduleAutoSync();
                 if (c > 0 || cCounsel > 0 || cAdopt > 0) {
-                    setStor({ state: 'ok', msg: '✅ 雲端還原 ' + c + ' 天資料、' + cCounsel + ' 天輔導、認養 ' + cAdopt + ' 筆' });
+                    setStor({ state: 'ok', msg: '✅ 雲端還原 ' + c + ' 天資料' + (cAdopt > 0 ? '、認養 ' + cAdopt + ' 筆' : '') });
                     await doLoadMonth(curYear, curMonth);
                 } else {
                     setStor({ state: 'ok', msg: '✅ 雲端就緒' });
@@ -7612,12 +7527,8 @@ function App() {
     }, [authed, firebaseUid]);
     async function doLoadMonth(y, m) {
         setLoading(true);
-        const [entries, counselEntries] = await Promise.all([
-            loadMonth(y, m),
-            loadCounselMonth(y, m)
-        ]);
+        const entries = await loadMonth(y, m);
         setMonthDays(entries);
-        setCounselMonth(counselEntries);
         setLoading(false);
     }
     // 計算月份和學期抵免統計
@@ -7662,29 +7573,6 @@ function App() {
         return calcExemptStats(allEntries);
     }
 
-    async function openCounsel(ds) {
-        const recs = await loadCounsel(ds);
-        setCounselRecords(recs);
-        setCounselDate(ds);
-        setCounselView(true);
-    }
-    async function saveCounselRecord(records) {
-        var savedCounsel = await saveCounsel(counselDate, records);
-        if (!savedCounsel.ok) {
-            setStor({ state:'error', msg:'❌ 每日輔導紀錄未能寫入本機', detail:counselDate });
-            return;
-        }
-        setCounselRecords(records);
-        setCounselMonth(prev => {
-            const next = Object.assign({}, prev);
-            if (records.length > 0)
-                next[counselDate] = records;
-            else
-                delete next[counselDate];
-            return next;
-        });
-        scheduleAutoSync();
-    }
     async function openDay(ds) {
         setLoading(true);
         const res = await loadDay(ds);
@@ -8372,7 +8260,6 @@ function App() {
         const allComplete = hasSome && allDone === filled;
         const partial = hasSome && !allComplete;
         const absentCount = (((_a = att.personal) === null || _a === void 0 ? void 0 : _a.size) || 0) + (((_b = att.sick) === null || _b === void 0 ? void 0 : _b.size) || 0) + (((_c = att.public) === null || _c === void 0 ? void 0 : _c.size) || 0);
-        const hasCounsel = !!((_d = counselMonth[dateStr]) === null || _d === void 0 ? void 0 : _d.length);
         const publicEvents = (schoolEventStore.events || []).filter(function(item){return item.date===dateStr;});
         return (React.createElement("div", { className: "cal-cell"+(isToday?" is-today":"")+(allComplete?" is-complete":"")+(partial?" is-partial":""), onClick: () => openDay(dateStr) },
             React.createElement("span", { className: "cal-day" }, d),
@@ -9210,7 +9097,7 @@ function App() {
                 React.createElement("div", { className: "hi-row1" },
                     // LIMU 標題 - 點擊回月曆
                     React.createElement("h1", {
-                        onClick: function() { setCounselView(false); setView("month"); },
+                        onClick: function() { setView("month"); },
                         style: {
                             fontFamily: "'Cinzel Decorative', serif",
                             fontSize: 22,
@@ -9323,6 +9210,10 @@ function App() {
             renderSafetyNudge(),
             React.createElement("div", { className: "stor-bar stor-"+stor.state, style:{ margin:'3px 10px', borderRadius:12, padding:'3px 12px' } },
                 React.createElement("span", { className: "stor-msg" }, stor.msg),
+                grRecords.length > 0 && React.createElement("span", {
+                    onClick: function(){ setGrCenter(true); setGrTab('recent'); setGrFilter('all'); setGrSearch(''); },
+                    style:{ cursor:'pointer', fontWeight:700, textDecoration:'underline', textUnderlineOffset:2 }
+                }, '📋 輔導紀錄 ' + grRecords.length + ' 筆'),
                 stor.detail && React.createElement("span", { className: "stor-detail" }, stor.detail),
                 view !== "month" && renderSyncChip('stor')),
             view === "month" && React.createElement("div", { className: "nav-bar" },
@@ -11857,7 +11748,6 @@ function App() {
             )
         ),
         /* wpInputOpen 已廢棄，改由 hwpicker 處理 */
-        counselView && (React.createElement(CounselView, { date: counselDate, records: counselRecords, onSave: saveCounselRecord, onClose: () => setCounselView(false), isNerv: isNerv, allMembers: ALL_MEMBERS, groups: groups, fmtDate: fmtDate })),
         view === "settings" && (React.createElement(SettingsView, { groups: groups, saveGroups: saveGroups, groupVersions: groupVersions, saveGroupVersions: saveGroupVersions, saveSettingsAtomic: saveSettingsAtomic, className: className, setClassName: (v) => { setClassName(v); _sl.set("hw5ren:className", v); saveSettingsToFirebase(v, undefined, undefined, undefined); }, schoolName: schoolName, setSchoolName: (v) => { setSchoolName(v); _sl.set("hw5ren:school", v); saveSettingsToFirebase(undefined, v, undefined, undefined); }, schoolYear: schoolYear, setSchoolYear: (v) => { setSchoolYear(v); _sl.set("hw5ren:year", v); saveSettingsToFirebase(undefined, undefined, v, undefined); }, semStart1: semStart1, setSemStart1: (v) => { setSemStart1(v); _sl.set("hw5ren:semStart1", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, v, undefined); }, semStart2: semStart2, setSemStart2: (v) => { setSemStart2(v); _sl.set("hw5ren:semStart2", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, undefined, v); }, semEnd1: semEnd1, semEnd2: semEnd2, schoolCalendar: schoolCalendar, classSize: classSize, setClassSize: (v) => { setClassSize(v); _sl.set("hw5ren:classSize", String(v)); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, v, undefined, undefined); }, officers: officers, saveOfficers: saveOfficers, officerPresets: officerPresets, setOfficerPresets: (v) => { setOfficerPresets(v); _sl.set("hw5ren:officerPresets", JSON.stringify(v)); markSettingsDirty('settings:main', '\u500B\u4EBA\u6E05\u55AE'); }, onClose: () => setView("month"), isNerv: isNerv, idbKeys: idbKeys, idbGet: idbGet, idbDelete: idbDelete, openDB: openDB, DB_STORE: DB_STORE, classes: classes, addClass: addClass, firebaseUid: firebaseUid, checkCurrentArchive:checkCurrentArchive, startSchoolYearTransition:startSchoolYearTransition, onOpenArchive:function(){setView("archive");} })),
         view === "archive" && (React.createElement(ArchiveView, { idbKeys: idbKeys, idbGet: idbGet, idbSet: idbSet, groups: groups, schoolYear: schoolYear, className: className, schoolName: schoolName, classes: classes, yearRecords: yearRecords, isNerv: isNerv, firebaseUid: firebaseUid, onBackupDone: function(){ setBackupEpoch(Date.now()); } })))));
 }
