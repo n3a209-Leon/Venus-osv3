@@ -4250,7 +4250,7 @@ function daySummary(rows, groups) {
 // ══════════════════════════════════════════════════
 // ImportToArchive 已移除（改用 Firestore 自動讀取）
 
-function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, schoolName, classes, yearRecords, isNerv, firebaseUid }) {
+function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, schoolName, classes, yearRecords, isNerv, firebaseUid, onBackupDone }) {
   var useState = React.useState, useEffect = React.useEffect, useRef = React.useRef;
   const [selYear, setSelYear] = useState(schoolYear || String(new Date().getFullYear()));
   const [selSchool, setSelSchool] = useState(schoolName || '');
@@ -4820,6 +4820,8 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
       a.download = 'LIMU-backup-' + snapshot.classKey.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, '_') + '-' + new Date().toISOString().slice(0,10) + (encrypted ? '-encrypted' : '') + '.json';
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+      try { _sl.set('hw5ren:lastBackupEpoch', String(Date.now())); } catch(exB) {}
+      if (typeof onBackupDone === 'function') onBackupDone();
       setArchiving(false);
     } catch(e) { setArchiving(false); alert('匯出失敗：' + (e && e.message || e)); }
   }
@@ -7483,6 +7485,8 @@ function App() {
     // ── 備份狀態 ──
     const todayStr = today();
     const [lastSyncTime, setLastSyncTime] = useState(() => safeGet("hw5ren:lastSync") || "");
+    const [syncEpoch, setSyncEpoch] = useState(() => Number(safeGet("hw5ren:lastSyncEpoch")) || 0);
+    const [backupEpoch, setBackupEpoch] = useState(() => Number(safeGet("hw5ren:lastBackupEpoch")) || 0);
     // getDriveFilename 已移除
     function saveYearRecord(year, school, cls) {
         if (!year && !cls)
@@ -7500,7 +7504,9 @@ function App() {
         const now = new Date();
         const ts = (now.getMonth()+1)+"/"+now.getDate()+" "+String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
         _sl.set("hw5ren:lastSync", ts);
+        _sl.set("hw5ren:lastSyncEpoch", String(now.getTime()));
         setLastSyncTime(ts);
+        setSyncEpoch(now.getTime());
     }
     // state: "init"|"checking"|"ok"|"error"|"saving"|"saved"
     const [stor, setStor] = useState({ state: "init", msg: "初始化中…", detail: "" });
@@ -9154,6 +9160,32 @@ function App() {
     var dayGroups = getGroupsForDate(selDate);
     var schoolDayEvents = (schoolEventStore.events || []).filter(function(item){return item.date===selDate;});
     var visibleSchoolDayEvents = schoolEventFocusImportant ? schoolDayEvents.filter(function(item){return item.important;}) : schoolDayEvents;
+    // ── 保命提醒：同步過期／久未離線備份（只有需要時才出現，平常不佔空間）──
+    function renderSafetyNudge() {
+        if (!firebaseUid) return null;
+        var DAY = 86400000, now = Date.now();
+        var syncDays = syncEpoch ? Math.floor((now - syncEpoch) / DAY) : -1;
+        var backupDays = backupEpoch ? Math.floor((now - backupEpoch) / DAY) : -1;
+        var items = [];
+        if (driveStatus !== 'syncing') {
+            if (syncEpoch && syncDays >= 3) items.push({ k:'sync', txt:'⚠️ 已 ' + syncDays + ' 天未成功同步，請按「同步」確認資料有上雲', warn:true });
+        }
+        if (backupDays < 0) items.push({ k:'bk', txt:'📦 尚未做過離線備份　建議到檔案室下載一份備份檔', warn:false });
+        else if (backupDays >= 30) items.push({ k:'bk', txt:'📦 已 ' + backupDays + ' 天未做離線備份　建議下載一份備份檔', warn:false });
+        if (!items.length) return null;
+        return items.map(function(it) {
+            return React.createElement("button", {
+                key: it.k, type:'button',
+                onClick: function(){ if (it.k === 'bk') setView('archive'); else doSync(); },
+                style:{
+                    display:'block', width:'auto', margin:'3px 10px', padding:'6px 12px', textAlign:'left',
+                    border:'none', borderRadius:12, cursor:'pointer', fontSize:11, fontWeight:700, lineHeight:1.5,
+                    background: it.warn ? (isNerv ? 'rgba(255,60,0,.14)' : '#fff3e0') : (isNerv ? 'rgba(255,102,0,.08)' : '#eef2fb'),
+                    color: it.warn ? (isNerv ? '#ff8844' : '#c65100') : (isNerv ? '#ffaa66' : '#4a6fa5')
+                }
+            }, it.txt);
+        });
+    }
     // 同步狀態晶片（月檢視顯示在月曆切換列，其餘檢視顯示在狀態列）
     function renderSyncChip(key, color) {
         return React.createElement("span", { key: key || 'sync', style: { marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, fontSize: 11, opacity: .85, flexShrink: 0, color: color || undefined } },
@@ -9288,6 +9320,7 @@ function App() {
                 'aria-label':'更新學校行事曆'
             }, '📅 ' + (schoolCalendarInfo.rocYear ? schoolCalendarInfo.rocYear + ' 學年度行事曆' : '行事曆') +
                 (schoolCalendarInfo.expired ? '已到期' : '即將到期') + '，點此匯入新學年度'),
+            renderSafetyNudge(),
             React.createElement("div", { className: "stor-bar stor-"+stor.state, style:{ margin:'3px 10px', borderRadius:12, padding:'3px 12px' } },
                 React.createElement("span", { className: "stor-msg" }, stor.msg),
                 stor.detail && React.createElement("span", { className: "stor-detail" }, stor.detail),
@@ -11826,7 +11859,7 @@ function App() {
         /* wpInputOpen 已廢棄，改由 hwpicker 處理 */
         counselView && (React.createElement(CounselView, { date: counselDate, records: counselRecords, onSave: saveCounselRecord, onClose: () => setCounselView(false), isNerv: isNerv, allMembers: ALL_MEMBERS, groups: groups, fmtDate: fmtDate })),
         view === "settings" && (React.createElement(SettingsView, { groups: groups, saveGroups: saveGroups, groupVersions: groupVersions, saveGroupVersions: saveGroupVersions, saveSettingsAtomic: saveSettingsAtomic, className: className, setClassName: (v) => { setClassName(v); _sl.set("hw5ren:className", v); saveSettingsToFirebase(v, undefined, undefined, undefined); }, schoolName: schoolName, setSchoolName: (v) => { setSchoolName(v); _sl.set("hw5ren:school", v); saveSettingsToFirebase(undefined, v, undefined, undefined); }, schoolYear: schoolYear, setSchoolYear: (v) => { setSchoolYear(v); _sl.set("hw5ren:year", v); saveSettingsToFirebase(undefined, undefined, v, undefined); }, semStart1: semStart1, setSemStart1: (v) => { setSemStart1(v); _sl.set("hw5ren:semStart1", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, v, undefined); }, semStart2: semStart2, setSemStart2: (v) => { setSemStart2(v); _sl.set("hw5ren:semStart2", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, undefined, v); }, semEnd1: semEnd1, semEnd2: semEnd2, schoolCalendar: schoolCalendar, classSize: classSize, setClassSize: (v) => { setClassSize(v); _sl.set("hw5ren:classSize", String(v)); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, v, undefined, undefined); }, officers: officers, saveOfficers: saveOfficers, officerPresets: officerPresets, setOfficerPresets: (v) => { setOfficerPresets(v); _sl.set("hw5ren:officerPresets", JSON.stringify(v)); markSettingsDirty('settings:main', '\u500B\u4EBA\u6E05\u55AE'); }, onClose: () => setView("month"), isNerv: isNerv, idbKeys: idbKeys, idbGet: idbGet, idbDelete: idbDelete, openDB: openDB, DB_STORE: DB_STORE, classes: classes, addClass: addClass, firebaseUid: firebaseUid, checkCurrentArchive:checkCurrentArchive, startSchoolYearTransition:startSchoolYearTransition, onOpenArchive:function(){setView("archive");} })),
-        view === "archive" && (React.createElement(ArchiveView, { idbKeys: idbKeys, idbGet: idbGet, idbSet: idbSet, groups: groups, schoolYear: schoolYear, className: className, schoolName: schoolName, classes: classes, yearRecords: yearRecords, isNerv: isNerv, firebaseUid: firebaseUid })))));
+        view === "archive" && (React.createElement(ArchiveView, { idbKeys: idbKeys, idbGet: idbGet, idbSet: idbSet, groups: groups, schoolYear: schoolYear, className: className, schoolName: schoolName, classes: classes, yearRecords: yearRecords, isNerv: isNerv, firebaseUid: firebaseUid, onBackupDone: function(){ setBackupEpoch(Date.now()); } })))));
 }
 
     debugStep('RENDER START');
