@@ -2824,10 +2824,10 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const COUNSEL_PERIODS = ["早自習", "第1節", "第2節", "第3節", "第4節", "午休", "第5節", "第6節", "放學後"];
 const COUNSEL_TYPES = ["學習", "行為", "情緒", "人際", "家庭", "其他"];
 const COUNSEL_FOLLOWUP = ["需追蹤", "已處理", "轉介"];
-const APP_VERSION = "12.0.0";
-const APP_BUILD_DATE = "2026-07-22";
-const APP_BUILD_ID = "limu-teacher-v12-20260722";
-const APP_CACHE_NAME = "hw-tracker-v12";
+const APP_VERSION = "12.1.0";
+const APP_BUILD_DATE = "2026-07-25";
+const APP_BUILD_ID = "limu-teacher-v13-20260725";
+const APP_CACHE_NAME = "hw-tracker-v13";
 window.__LIMU_BUILD__ = Object.freeze({
     appVersion: APP_VERSION,
     buildDate: APP_BUILD_DATE,
@@ -3983,6 +3983,8 @@ function firstWeekday(y, m) { return new Date(y, m, 1).getDay(); }
 function daySummary(rows, groups) {
     if (!groups || !groups.length) groups = window._fallbackGroups || [];
     const filled = rows.filter(r => r.hwName).length;
+    // 無組別資料時無從判斷完成度，回傳 0 避免空陣列 .every() 恆真而誤顯示「全數完成」
+    if (!groups.length) return { filled, allDone: 0 };
     const allDone = rows.filter(r => {
         if (!r.hwName)
             return false;
@@ -5387,6 +5389,8 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
     const inp = nerv
         ? { width: "100%", padding: "8px 10px", background: "rgba(255,102,0,.06)", border: "1px solid rgba(255,102,0,.4)", color: "#ff8844", borderRadius: 2, fontSize: 14, fontFamily: "Share Tech Mono,monospace", boxSizing: "border-box" }
         : { width: "100%", padding: "8px 12px", border: "2px solid #dde5ee", borderRadius: 10, fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", outline: "none" };
+    // 數字欄位：點進去自動全選，直接打字即取代舊值（免手動全選）
+    const selAll = function(e){ try { e.target.select(); } catch(_) {} };
     var transitionDuplicate = findExistingSchoolYearTransition(
         classes, currentClassKey(), transitionForm.year, transitionForm.schoolName, transitionForm.className
     );
@@ -5420,10 +5424,19 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                 React.createElement("div", { style: { display:"flex", gap:12, marginBottom:12 } },
                     React.createElement("div", { style:{ flex:1 } },
                         React.createElement("label", { style: lbl }, nerv ? "// YEAR //" : "\u5B78\u5E74\uFF08\u897F\u5143\u5E74\uFF09"),
-                        React.createElement("input", { style: inp, value: draftYear, onChange: e => setDraftYear(e.target.value), placeholder: "\u4F8B\uFF1A2026", maxLength: 4, type: "number" })),
+                        React.createElement("input", { style: inp, value: draftYear, onFocus: selAll, onChange: e => setDraftYear(e.target.value.replace(/[^0-9]/g, '')), placeholder: "\u4F8B\uFF1A2026", maxLength: 4, type: "text", inputMode: "numeric" })),
                     React.createElement("div", { style:{ flex:1 } },
                         React.createElement("label", { style: lbl }, nerv ? "// CLASS SIZE //" : "\u5168\u73ED\u4EBA\u6578"),
-                        React.createElement("input", { style: inp, value: draftClassSize, onChange: e => setDraftClassSize(parseInt(e.target.value)||40), placeholder: "27", maxLength: 3, type: "number", min: 1, max: 60 }))),
+                        React.createElement("input", { style: inp, value: draftClassSize,
+                            onChange: e => setDraftClassSize(e.target.value.replace(/[^0-9]/g, '')),
+                            onFocus: selAll,
+                            onBlur: function(e){
+                                var v = parseInt(e.target.value, 10);
+                                if (!v || v < 1) v = parseInt(classSize, 10) || 40; // 清空/無效 → 還原原本人數
+                                else if (v > 60) v = 60;
+                                setDraftClassSize(String(v));
+                            },
+                            placeholder: "27", maxLength: 3, type: "text", inputMode: "numeric" }))),
                 (draftYear || draftSchool || draftClass) && (React.createElement("p", { style: { fontSize: 12, color: nerv ? "rgba(255,102,0,.6)" : "#8a9db5", marginTop: 4 } },
                     nerv ? "// \u9810\u89BD\uFF1A" : "\u9810\u89BD\uFF1A",
                     React.createElement("span", { style: { fontWeight: 700, color: nerv ? "#ffaa44" : "#1e3a5f" } }, [draftYear && draftYear+"\u5E74", draftSchool, draftClass].filter(Boolean).join(" "))))),
@@ -5433,7 +5446,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                     React.createElement("button", { onClick: () => setShowAddClass(p => !p), style: { background: nerv?"rgba(255,102,0,.15)":"rgba(30,58,95,.1)", border:"none", color: nerv?"#ff8844":"#1e3a5f", padding:"5px 12px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:700 } }, showAddClass ? "\u25B2 \u6536\u8D77" : "\u25BC \u5C55\u958B")),
                 showAddClass && React.createElement(React.Fragment, null,
                     React.createElement("label", { style: lbl }, nerv ? "// YEAR //" : "\u5B78\u5E74\uFF08\u897F\u5143\u5E74\uFF09"),
-                    React.createElement("input", { style: Object.assign({}, inp, { marginBottom: 10 }), value: newYear, onChange: e => setNewYear(e.target.value), placeholder: "\u4F8B\uFF1A2027", maxLength: 4, type: "number" }),
+                    React.createElement("input", { style: Object.assign({}, inp, { marginBottom: 10 }), value: newYear, onFocus: selAll, onChange: e => setNewYear(e.target.value.replace(/[^0-9]/g, '')), placeholder: "\u4F8B\uFF1A2027", maxLength: 4, type: "text", inputMode: "numeric" }),
                     React.createElement("label", { style: lbl }, nerv ? "// SCHOOL //" : "\u5B78\u6821\u540D\u7A31"),
                     React.createElement("input", { style: Object.assign({}, inp, { marginBottom: 10 }), value: newSchool, onChange: e => setNewSchool(e.target.value), placeholder: "\u4F8B\uFF1A\u5927\u5B89\u570B\u5C0F", maxLength: 20 }),
                     React.createElement("label", { style: lbl }, nerv ? "// CLASS NAME //" : "\u73ED\u7D1A\u540D\u7A31"),
@@ -5589,7 +5602,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                             nerv?"// SELECT MEMBER SEATS //":"\u5EA7\u865F\u9EDE\u9078",
                             React.createElement("span", { style:{ fontSize:10, fontWeight:400, marginLeft:8, color:nerv?"rgba(255,102,0,.5)":"#bbb" } }, "\u6A58\u8272=\u672C\u7D44 \u7070\u8272=\u5176\u4ED6\u7D44\u5DF2\u9078")),
                         React.createElement("div", { style:{ display:"grid", gridTemplateColumns:"repeat(8,1fr)", gap:5, marginBottom:14 } },
-                            Array.from({ length: draftClassSize }, function(_,i){ return i+1; }).map(function(n){
+                            Array.from({ length: Math.max(0, Math.min(60, parseInt(draftClassSize, 10) || 0)) }, function(_,i){ return i+1; }).map(function(n){
                                 var inThis = g.members.includes(n);
                                 var inOther = !inThis && allUsed.includes(n);
                                 var isLeader = g.leader === n;
@@ -5674,7 +5687,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                             onChange:function(e){ setOfficerRoleInput(e.target.value); } }),
                         React.createElement("div", { style:{ fontSize:12, color:(nerv?"rgba(255,102,0,.6)":"#b388c9"), marginBottom:8, fontWeight:600 } }, "\u5EA7\u865F"),
                         React.createElement("input", { type:"number", style:{ width:"100%", padding:"10px 12px", border:"1.5px solid #ce93d8", borderRadius:10, fontSize:14, boxSizing:"border-box", fontFamily:"inherit", outline:"none" },
-                            placeholder:"\u4F8B\uFF1A7", value:officerSeatInput,
+                            placeholder:"\u4F8B\uFF1A7", value:officerSeatInput, onFocus:selAll,
                             onChange:function(e){ setOfficerSeatInput(e.target.value); },
                             onKeyDown:function(e){ if(e.key==='Enter' && officerRoleInput.trim() && officerSeatInput.trim()){
                                 var next = JSON.parse(JSON.stringify(officers));
@@ -5719,7 +5732,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                     React.createElement("input", { type:"number", readOnly:true, "aria-readonly":"true", style:Object.assign({},inp,{background:nerv?"rgba(255,102,0,.025)":"#f1f4f7",fontWeight:800}), value:transitionForm.year })),
                 React.createElement("div", null,
                     React.createElement("label", { style:lbl }, "新班級人數"),
-                    React.createElement("input", { type:"number", min:1, max:60, style:inp, value:transitionForm.classSize, onChange:function(e){setTransitionForm(function(p){return Object.assign({},p,{classSize:e.target.value});});} }))),
+                    React.createElement("input", { type:"text", inputMode:"numeric", maxLength:3, style:inp, value:transitionForm.classSize, onFocus:selAll, onChange:function(e){var v=e.target.value.replace(/[^0-9]/g, '');setTransitionForm(function(p){return Object.assign({},p,{classSize:v});});} }))),
             React.createElement("label", { style:Object.assign({},lbl,{marginTop:10}) }, "學校名稱"),
             React.createElement("input", { style:inp, value:transitionForm.schoolName, onChange:function(e){setTransitionForm(function(p){return Object.assign({},p,{schoolName:e.target.value});});} }),
             React.createElement("label", { style:Object.assign({},lbl,{marginTop:10}) }, "新班級名稱"),
@@ -5756,11 +5769,11 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                     React.createElement("div", { style: { display: "flex", gap: 8 } },
                         React.createElement("div", { style: { flex: 1 } },
                             React.createElement("label", { style: Object.assign(Object.assign({}, lbl), { marginBottom: 4 }) }, "\u8D77\u59CB\u5B78\u5E74"),
-                            React.createElement("input", { style: inp, type: "number", value: clearInput.yearFrom, onChange: e => setClearInput(p => (Object.assign(Object.assign({}, p), { yearFrom: parseInt(e.target.value) }))) })),
+                            React.createElement("input", { style: inp, type: "text", inputMode: "numeric", maxLength: 4, value: clearInput.yearFrom, onFocus: selAll, onChange: e => { var v = e.target.value.replace(/[^0-9]/g, ''); setClearInput(p => (Object.assign(Object.assign({}, p), { yearFrom: v }))); } })),
                         React.createElement("div", { style: { display: "flex", alignItems: "flex-end", paddingBottom: 10, color: nerv ? "#ff6600" : "#aaa" } }, "\u2014"),
                         React.createElement("div", { style: { flex: 1 } },
                             React.createElement("label", { style: Object.assign(Object.assign({}, lbl), { marginBottom: 4 }) }, "\u7D50\u675F\u5B78\u5E74"),
-                            React.createElement("input", { style: inp, type: "number", value: clearInput.yearTo, onChange: e => setClearInput(p => (Object.assign(Object.assign({}, p), { yearTo: parseInt(e.target.value) }))) })))),
+                            React.createElement("input", { style: inp, type: "text", inputMode: "numeric", maxLength: 4, value: clearInput.yearTo, onFocus: selAll, onChange: e => { var v = e.target.value.replace(/[^0-9]/g, ''); setClearInput(p => (Object.assign(Object.assign({}, p), { yearTo: v }))); } })))),
                 React.createElement("div", { style: { background: nerv ? "rgba(255,0,0,.1)" : "#fff5f5", border: nerv ? "1px solid rgba(255,0,0,.3)" : "1px solid #ffcdd2", borderRadius: 8, padding: "10px 14px", marginBottom: 16 } },
                     React.createElement("p", { style: { fontSize: 13, color: nerv ? "#ff4444" : "#c62828", fontWeight: 700, marginBottom: 4 } }, "\u5373\u5C07\u6E05\u9664\uFF1A"),
                     React.createElement("p", { style: { fontSize: 14, color: nerv ? "#ff6666" : "#e53935", fontWeight: 900 } },
@@ -11958,7 +11971,7 @@ setTimeout(function(){
     ]).then(function(results){
       var info = results[0], swText = results[1] || '';
       var myBuild = currentBuildId(), myCache = currentCacheName();
-      if (!info || (myBuild && (info.buildId !== myBuild || info.cacheName !== myCache || swText.indexOf(myBuild) < 0 || swText.indexOf("CACHE_PREFIX + 'v12'") < 0))) {
+      if (!info || (myBuild && (info.buildId !== myBuild || info.cacheName !== myCache || swText.indexOf(myBuild) < 0 || swText.indexOf("CACHE_PREFIX + 'v13'") < 0))) {
         showUpdateBar(reg, '⚠️ 部署檔案版本不一致，請重新上傳完整 v12 部署包', true);
       }
     }).catch(function(){ /* 離線時不顯示混版警告 */ });

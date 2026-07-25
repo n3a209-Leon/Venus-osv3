@@ -2,8 +2,8 @@
 // 導覽採 Network First，靜態檔採 Stale While Revalidate。
 
 const CACHE_PREFIX = 'hw-tracker-';
-const CACHE_NAME = CACHE_PREFIX + 'v12';
-const BUILD_ID = 'limu-teacher-v12-20260722';
+const CACHE_NAME = CACHE_PREFIX + 'v13';
+const BUILD_ID = 'limu-teacher-v13-20260725';
 const PRECACHE_URLS = [
   './index.html',
   './version.json',
