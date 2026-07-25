@@ -51,7 +51,7 @@
         .hi-row2 .class-switcher{width:100%}
         .hi-row2 .class-switcher-btn{width:100%;max-width:100%;justify-content:space-between;box-sizing:border-box}
         .sync-msg{margin-left:auto;font-size:12px;color:#a5d6a7;font-weight:600}
-        .nav-bar{max-width:960px;margin:0 auto;display:flex;align-items:center;gap:5px;padding:6px 0 8px;flex-wrap:nowrap}
+        .nav-bar{max-width:960px;margin:0 auto;display:flex;align-items:center;gap:5px;padding:6px 12px 8px;flex-wrap:nowrap}
 
         /* ── STORAGE STATUS BAR ── */
         .stor-bar{display:flex;align-items:center;gap:10px;padding:3px 20px;font-size:11px;font-weight:600;flex-wrap:wrap;transition:background .3s}
@@ -7913,6 +7913,7 @@ function App() {
         setHwPickerReminderMode(false); setHwPickerReminderText('');
     }
     const [hwPickerWpDay, setHwPickerWpDay] = React.useState('');
+    const [hwPickerWpIdx, setHwPickerWpIdx] = React.useState(-1); // >=0 表示編輯既有項目，-1 為新增
     const [reminderHistory, setReminderHistory] = React.useState(function() {
         try { var v = localStorage.getItem('hw5ren:reminderHistory'); return v ? JSON.parse(v) : []; } catch(e) { return []; }
     });
@@ -7928,11 +7929,24 @@ function App() {
     function hwPickerOpen(ri) {
         hwPickerReset();
         setHwPickerWpDay('');
+        setHwPickerWpIdx(-1);
         setModal({ ri: ri, gid: null, phase: 'hwpicker' });
     }
     function hwPickerOpenForWp(day) {
         hwPickerReset();
         setHwPickerWpDay(day);
+        setHwPickerWpIdx(-1);
+        setModal({ ri: -1, gid: null, phase: 'hwpicker' });
+    }
+    // 編輯週計畫既有項目：帶入索引，確認時改為覆蓋該筆
+    function hwPickerOpenForWpEdit(day, idx, item) {
+        hwPickerReset();
+        setHwPickerWpDay(day);
+        setHwPickerWpIdx(idx);
+        if (item && item.type === 'note') {
+            setHwPickerReminderMode(true);
+            setHwPickerReminderText(item.content || '');
+        }
         setModal({ ri: -1, gid: null, phase: 'hwpicker' });
     }
     function hwPickerBuildName() {
@@ -7963,8 +7977,10 @@ function App() {
         if (ll.length > 0) hwPickerRecordLesson(t, ll);
         addToCustomHW(name); addToRecentHW(name);
         if (hwPickerWpDay) {
-            wpAddItem(hwPickerWpDay, name, '', 'hw');
+            if (hwPickerWpIdx >= 0) wpUpdateItem(hwPickerWpDay, hwPickerWpIdx, name, '', 'hw');
+            else wpAddItem(hwPickerWpDay, name, '', 'hw');
             setHwPickerWpDay('');
+            setHwPickerWpIdx(-1);
             closeModal();
         } else if (modal && modal.ri === -1) {
             // 新增模式：在末尾加一列，同時清除舊的空列
@@ -7984,8 +8000,10 @@ function App() {
         if (!text) return;
         reminderRecordAdd(text);
                 if (hwPickerWpDay) {
-            wpAddItem(hwPickerWpDay, text, '', 'note');
+            if (hwPickerWpIdx >= 0) wpUpdateItem(hwPickerWpDay, hwPickerWpIdx, text, '', 'note');
+            else wpAddItem(hwPickerWpDay, text, '', 'note');
             setHwPickerWpDay('');
+            setHwPickerWpIdx(-1);
             closeModal();
         } else {
             closeModal();
@@ -8423,6 +8441,18 @@ function App() {
         }
         return sections;
     }
+    // 目前應聚焦的週（本週；若今天在假期則取最接近的一週）
+    function wpAnchorWeek() {
+        var secs = wpSemesterSections();
+        var allW = [];
+        secs.forEach(function(s){ (s.weeks||[]).forEach(function(w){ allW.push(w); }); });
+        if (!allW.length) return '';
+        var todayMon = wpGetMonday(today());
+        if (allW.indexOf(todayMon) >= 0) return todayMon;
+        return allW.reduce(function(best, w) {
+            return Math.abs(new Date(w) - new Date(todayMon)) < Math.abs(new Date(best) - new Date(todayMon)) ? w : best;
+        }, allW[0]);
+    }
     // 看板內快速跳轉到指定區塊/本週
     function wpScrollTo(id, block) {
         var el = document.getElementById(id);
@@ -8441,7 +8471,7 @@ function App() {
         setWpSavingWeek('');
         setWpView('board');
         setWpOpen(true);
-        setTimeout(function(){ var el = document.getElementById('wp-board-current'); if (el && el.scrollIntoView) el.scrollIntoView({ block:'center' }); }, 80);
+        setTimeout(function(){ wpScrollTo('wp-wk-' + wpAnchorWeek(), 'center'); }, 80);
     }
     function wpShiftWeek(delta) {
         var d = new Date(wpWeekStart); d.setDate(d.getDate() + delta * 7);
@@ -8468,6 +8498,28 @@ function App() {
         setWpDays(function(prev) {
             var next = Object.assign({}, prev);
             next[day] = (next[day] || []).concat([item]);
+            return next;
+        });
+    }
+    // 覆蓋週計畫中既有的一筆項目
+    function wpUpdateItem(day, idx, content, note, type) {
+        if (!content || !content.trim()) return;
+        var item = { content: content.trim(), note: (note||'').trim(), type: type };
+        if (wpEditModeRef.current === 'board') {
+            var ws = wpGetMonday(day);
+            setWpBoardDays(function(prev) {
+                var n = Object.assign({}, prev);
+                var wk = Object.assign({}, n[ws] || {});
+                wk[day] = (wk[day] || []).map(function(it, i){ return i === idx ? item : it; });
+                n[ws] = wk;
+                return n;
+            });
+            setWpDirtyWeeks(function(prev) { var n = Object.assign({}, prev); n[ws] = true; return n; });
+            return;
+        }
+        setWpDays(function(prev) {
+            var next = Object.assign({}, prev);
+            next[day] = (next[day] || []).map(function(it, i){ return i === idx ? item : it; });
             return next;
         });
     }
@@ -9014,6 +9066,23 @@ function App() {
     var dayGroups = getGroupsForDate(selDate);
     var schoolDayEvents = (schoolEventStore.events || []).filter(function(item){return item.date===selDate;});
     var visibleSchoolDayEvents = schoolEventFocusImportant ? schoolDayEvents.filter(function(item){return item.important;}) : schoolDayEvents;
+    // 同步狀態晶片（月檢視顯示在月曆切換列，其餘檢視顯示在狀態列）
+    function renderSyncChip(key, color) {
+        return React.createElement("span", { key: key || 'sync', style: { marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, fontSize: 11, opacity: .85, flexShrink: 0, color: color || undefined } },
+            React.createElement("span", { style: { width: 6, height: 6, borderRadius: "50%", display: "inline-block", flexShrink: 0,
+                    background: driveStatus === "ok" ? "#4caf80" : driveStatus === "syncing" ? "#ffaa00" : "#888",
+                    boxShadow: driveStatus === "syncing" ? "0 0 4px #ffaa00" : driveStatus === "ok" ? "0 0 4px #4caf80" : "none",
+                    animation: driveStatus === "syncing" ? "pulse .8s infinite" : "none"
+                } }),
+            React.createElement("div", { style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:1} },
+                React.createElement("span", null,
+                    driveStatus === "ok" ? "🔥 已同步" :
+                    driveStatus === "syncing" ? "🟡 同步中" :
+                    driveStatus === "error" ? "🔴 同步失敗" : "⚪ 尚未登入"),
+                driveStatus === "ok" && lastSyncTime && React.createElement("span", { style:{fontSize:9,opacity:.6} }, lastSyncTime),
+                driveStatus === "error" && driveError && React.createElement("span", { style:{fontSize:9,color:"#ff8a80",maxWidth:100,textAlign:"right",lineHeight:1.2} }, driveError)
+            ));
+    }
     return (React.createElement(React.Fragment, null,
         React.createElement("div", { className: "app", "data-theme": theme, onClick: (e) => { if (showClassDropdown && !e.target.closest(".class-switcher")) setShowClassDropdown(false); } },
         React.createElement("header", null,
@@ -9123,7 +9192,7 @@ function App() {
             schoolCalendarInfo.needsUpdate && React.createElement("button", {
                 onClick:function(){ setShowCalImport(true); },
                 style:{
-                    width:'100%', border:'none', borderRadius:0, padding:'8px 16px', textAlign:'left',
+                    width:'auto', margin:'6px 10px', border:'none', borderRadius:12, padding:'10px 14px', textAlign:'left',
                     background:schoolCalendarInfo.expired?'#fff3e0':'#fff8e1',
                     color:schoolCalendarInfo.expired?'#c62828':'#8d6e00', fontSize:12, fontWeight:700,
                     cursor:'pointer'
@@ -9131,64 +9200,10 @@ function App() {
                 'aria-label':'更新學校行事曆'
             }, '📅 ' + (schoolCalendarInfo.rocYear ? schoolCalendarInfo.rocYear + ' 學年度行事曆' : '行事曆') +
                 (schoolCalendarInfo.expired ? '已到期' : '即將到期') + '，點此匯入新學年度'),
-            React.createElement("div", { className: "stor-bar stor-"+stor.state },
+            React.createElement("div", { className: "stor-bar stor-"+stor.state, style:{ margin:'6px 10px', borderRadius:12 } },
                 React.createElement("span", { className: "stor-msg" }, stor.msg),
                 stor.detail && React.createElement("span", { className: "stor-detail" }, stor.detail),
-                React.createElement("span", { style: { marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, fontSize: 11, opacity: .8 } },
-                    React.createElement("span", { style: { width: 6, height: 6, borderRadius: "50%", display: "inline-block",
-                            background: driveStatus === "ok" ? "#4caf80" : driveStatus === "syncing" ? "#ffaa00" : "#888",
-                            boxShadow: driveStatus === "syncing" ? "0 0 4px #ffaa00" : driveStatus === "ok" ? "0 0 4px #4caf80" : "none",
-                            animation: driveStatus === "syncing" ? "pulse .8s infinite" : "none"
-                        } }),
-                    React.createElement("div", { style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:1} },
-                        React.createElement("span", null,
-                            driveStatus === "ok" ? "🔥 Firebase 已同步" :
-                            driveStatus === "syncing" ? "🟡 Firebase 同步中" :
-                            driveStatus === "error" ? "🔴 Firebase 同步失敗" : "⚪ 尚未登入"),
-                        driveStatus === "ok" && lastSyncTime && React.createElement("span", { style:{fontSize:9,opacity:.6} }, lastSyncTime),
-                        driveStatus === "error" && driveError && React.createElement("span", { style:{fontSize:9,color:"#ff8a80",maxWidth:100,textAlign:"right",lineHeight:1.2} }, driveError)
-                    ))),
-            React.createElement("div", { className: "backup-warn"+(isNerv?" backup-warn-nerv":""), style: {
-                    background: driveStatus === "ok"
-                        ? (isNerv ? "#001a00" : "#f0faf4")
-                        : driveStatus === "syncing"
-                            ? (isNerv ? "#1a1000" : "#fff9f0")
-                            : driveStatus === "error"
-                                ? (isNerv ? "#1a0000" : "#fff5f5")
-                                : (isNerv ? "#0a0a0a" : "#f5f5f5"),
-                    borderLeft: isNerv ? "none" : ("4px solid " + (driveStatus === "ok" ? "#4caf80" :
-                        driveStatus === "syncing" ? "#ffaa00" :
-                            driveStatus === "error" ? "#f44336" : "#aaa")),
-                    borderTop: isNerv ? ("1px solid " + (driveStatus === "ok" ? "#00cc55" :
-                        driveStatus === "syncing" ? "#ffaa00" :
-                            driveStatus === "error" ? "#ff0000" : "#333")) : undefined,
-                    borderBottom: isNerv ? ("1px solid " + (driveStatus === "ok" ? "#00cc55" :
-                        driveStatus === "syncing" ? "#ffaa00" :
-                            driveStatus === "error" ? "#ff0000" : "#333")) : undefined,
-                } },
-                React.createElement("span", { className: "backup-warn-text", style: {
-                        color: isNerv
-                            ? (driveStatus === "ok" ? "#00ff66" : driveStatus === "syncing" ? "#ffaa00" : driveStatus === "error" ? "#ff0000" : "#888")
-                            : (driveStatus === "ok" ? "#2e7d32" : driveStatus === "syncing" ? "#e65100" : driveStatus === "error" ? "#c62828" : "#888"),
-                        textShadow: isNerv
-                            ? (driveStatus === "ok" ? "0 0 8px rgba(0,255,100,.8)" : driveStatus === "syncing" ? "0 0 8px rgba(255,170,0,.8)" : driveStatus === "error" ? "0 0 8px rgba(255,0,0,.8)" : "none")
-                            : "none",
-                        animation: driveStatus === "syncing"
-                            ? "marquee 8s linear infinite, alert-pulse .6s ease-in-out infinite"
-                            : "marquee 18s linear infinite",
-                    } },
-                    driveStatus === "ok" && (isNerv
-                        ? "✦ FIREBASE SYNC COMPLETE // 最後同步："+(lastSyncTime||"—")+" // ALL DATA SECURED // ✦ DRIVE SYNC COMPLETE // 最後同步："+(lastSyncTime||"—")+" // ALL DATA SECURED //"
-                        : "🔥 Firebase 已同步　最後同步："+(lastSyncTime||"尚未同步")+"　資料已安全儲存　🔥 Firebase 已同步　最後同步："+(lastSyncTime||"尚未同步")+"　資料已安全儲存"),
-                    driveStatus === "syncing" && (isNerv
-                        ? "⏳ SYNCING TO MAGI DATABASE... // 同步中 // 請稍候 // ⏳ SYNCING TO MAGI DATABASE... // 同步中 // 請稍候 //"
-                        : "⏳ 正在同步到 Firebase…　請稍候　⏳ 正在同步到 Firebase…　請稍候"),
-                    driveStatus === "error" && (isNerv
-                        ? "⚠ DRIVE SYNC FAILED // 請檢查網路連線 // 資料已儲存於本機 // ⚠ DRIVE SYNC FAILED // 請檢查網路連線 //"
-                        : "⚠️ Firebase 同步失敗　請檢查網路連線　資料已儲存於本機　⚠️ Firebase 同步失敗　請檢查網路連線"),
-                    driveStatus === "offline" && (isNerv
-                        ? "◈ DRIVE OFFLINE // 本機儲存中 // 登入後自動同步 // ◈ DRIVE OFFLINE // 本機儲存中 // 登入後自動同步 //"
-                        : "🔌 未連線　資料儲存於本機　登入後自動同步　🔌 未連線　資料儲存於本機"))),
+                view !== "month" && renderSyncChip('stor')),
             view === "month" && React.createElement("div", { className: "nav-bar" },
                 React.createElement("button", { className: "nav-btn", onClick: prevMonth, 'aria-label':"上一個月" }, "\u2039"),
                 React.createElement("span", { className: "month-label" }, isNerv
@@ -9197,7 +9212,8 @@ function App() {
                         React.createElement("span", { className: "nerv-dot" }, "\u00B7"),
                         React.createElement("span", { className: "nerv-mo" }, String(curMonth + 1).padStart(2, "0")))
                     : curYear+" 年 "+(curMonth+1)+" 月"),
-                React.createElement("button", { className: "nav-btn", onClick: nextMonth, 'aria-label':"下一個月" }, "\u203A")),
+                React.createElement("button", { className: "nav-btn", onClick: nextMonth, 'aria-label':"下一個月" }, "\u203A"),
+                renderSyncChip('nav', isNerv ? '#ff9a64' : 'rgba(255,255,255,.85)')),
             view === "day" && React.createElement("div", { className: "excel-bar" },
                 importMsg && React.createElement("span", { className: "import-msg" }, importMsg),
                 React.createElement("button", { className: "excel-btn diag-btn", onClick: async () => {
@@ -10683,7 +10699,30 @@ function App() {
                     React.createElement("button", { onClick:function(){if(publicCalendarFileRef.current)publicCalendarFileRef.current.click();},style:{width:'100%',padding:'10px',border:'1px dashed #9fb3ca',borderRadius:9,background:theme==='nerv'?'rgba(255,102,0,.06)':'#f7f9fc',color:theme==='nerv'?'#ff8844':'#526b8e',fontSize:12,fontWeight:800,cursor:'pointer'} }, '📂 選擇已下載的 .ics／CSV／JSON')
                 ),
                 calendarImportMessage && React.createElement("div", { role:'status',style:{padding:'9px 11px',borderRadius:9,background:theme==='nerv'?'rgba(255,102,0,.08)':theme==='nebula'?'rgba(150,100,255,.10)':'#eef5ff',color:theme==='nerv'?'#ff9a64':theme==='nebula'?'#d7c9ff':'#365b88',fontSize:11,lineHeight:1.55,marginBottom:12} }, calendarImportMessage),
-                detectedCalendarSources.length>0 && React.createElement("div", { style:{fontSize:10,color:'#8fa0b8',marginBottom:10} }, '已辨識公開來源：'+detectedCalendarSources.map(function(item){return item.label;}).join('、')),
+                detectedCalendarSources.length>0 && React.createElement("div", { style:{marginBottom:10,padding:'9px 11px',borderRadius:9,background:theme==='nerv'?'rgba(255,102,0,.06)':'rgba(120,140,200,.10)'} },
+                    React.createElement("div", { style:{fontSize:10,color:'#8fa0b8',marginBottom:6} }, '已辨識公開來源（瀏覽器無法直接讀取時，請複製連結用 Safari 下載後再選擇檔案）'),
+                    detectedCalendarSources.map(function(item, i) {
+                        return React.createElement("div", { key:i, style:{display:'flex',alignItems:'center',gap:6,marginTop:5} },
+                            React.createElement("span", { style:{flex:1,minWidth:0,fontSize:11,color:theme==='nerv'?'#ff9a64':'#4a6fa5',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'} }, item.label || item.url),
+                            item.url && React.createElement("button", {
+                                onClick: function(){
+                                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                                        navigator.clipboard.writeText(item.url).then(function(){
+                                            setCalendarImportMessage('✅ 已複製連結，請到 Safari 貼上開啟並下載檔案，再回來按「選擇已下載的檔案」');
+                                        });
+                                    } else {
+                                        setCalendarImportMessage('此裝置無法自動複製，連結為：' + item.url);
+                                    }
+                                },
+                                style:{flex:'0 0 auto',minHeight:34,padding:'6px 10px',border:'none',borderRadius:8,fontSize:11,fontWeight:800,cursor:'pointer',background:'rgba(120,140,220,.25)',color:theme==='nerv'?'#ffb488':'#dfe8ff'}
+                            }, '複製連結'),
+                            item.url && React.createElement("a", {
+                                href: item.url, target:'_blank', rel:'noopener noreferrer',
+                                style:{flex:'0 0 auto',minHeight:34,display:'flex',alignItems:'center',padding:'6px 10px',borderRadius:8,fontSize:11,fontWeight:800,textDecoration:'none',background:'rgba(120,140,220,.15)',color:theme==='nerv'?'#ffb488':'#dfe8ff'}
+                            }, '開啟')
+                        );
+                    })
+                ),
                 calendarCandidates.length>0 && React.createElement("section", { style:{border:'1px solid '+(theme==='nerv'?'rgba(255,102,0,.25)':'#d8cff2'),borderRadius:12,padding:12,marginBottom:14} },
                     React.createElement("div", { style:{display:'flex',alignItems:'center',gap:7,marginBottom:8} },
                         React.createElement("strong", { style:{fontSize:12,color:theme==='nerv'?'#ff8844':theme==='nebula'?'#c8b0ff':'#4f3a78',flex:1} }, '3. 勾選要加入的事件（'+calendarCandidates.length+'）'),
@@ -11499,10 +11538,31 @@ function App() {
                         var hasS2 = secs.some(function(s){ return s.key === 'sem2'; });
                         var navBtn = { flex:1, fontSize:12, fontWeight:700, padding:'8px 0', minHeight:40, borderRadius:8, border:'none', cursor:'pointer', background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.75)' };
                         var inTerm = secs.some(function(s){ return (s.weeks||[]).indexOf(wpGetMonday(today())) >= 0; });
-                        return React.createElement("div", { style:{display:'flex', gap:6, padding:'8px 12px', flexShrink:0, borderBottom:'1px solid rgba(255,255,255,.06)'} },
-                            hasS1 && React.createElement("button", { onClick: function(){ wpScrollTo('wp-sec-sem1','start'); }, style: navBtn }, "上學期"),
-                            hasS2 && React.createElement("button", { onClick: function(){ wpScrollTo('wp-sec-sem2','start'); }, style: navBtn }, "下學期"),
-                            React.createElement("button", { onClick: function(){ wpScrollTo('wp-board-current','center'); }, style:{ flex:1, fontSize:12, fontWeight:700, padding:'8px 0', minHeight:40, borderRadius:8, border:'none', cursor:'pointer', background:'linear-gradient(135deg,#5e35b1,#7b1fa2)', color:'#fff' } }, inTerm ? "🔵 本週" : "🔵 最近一週")
+                        var anchorNow = wpAnchorWeek();
+                        return React.createElement("div", { style:{padding:'8px 12px', flexShrink:0, borderBottom:'1px solid rgba(255,255,255,.06)'} },
+                            React.createElement("div", { style:{display:'flex', gap:6} },
+                                hasS1 && React.createElement("button", { onClick: function(){ wpScrollTo('wp-sec-sem1','start'); }, style: navBtn }, "上學期"),
+                                hasS2 && React.createElement("button", { onClick: function(){ wpScrollTo('wp-sec-sem2','start'); }, style: navBtn }, "下學期"),
+                                React.createElement("button", { onClick: function(){ wpScrollTo('wp-wk-' + wpAnchorWeek(),'center'); }, style:{ flex:1, fontSize:12, fontWeight:700, padding:'8px 0', minHeight:40, borderRadius:8, border:'none', cursor:'pointer', background:'linear-gradient(135deg,#5e35b1,#7b1fa2)', color:'#fff' } }, inTerm ? "🔵 本週" : "🔵 最近一週")
+                            ),
+                            React.createElement("select", {
+                                value: anchorNow,
+                                onChange: function(e){ if (e.target.value) wpScrollTo('wp-wk-' + e.target.value, 'center'); },
+                                style:{ width:'100%', marginTop:6, minHeight:40, padding:'8px 10px', borderRadius:8,
+                                    border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.06)',
+                                    color:'rgba(255,255,255,.8)', fontSize:12, fontWeight:700, fontFamily:'inherit',
+                                    WebkitAppearance:'none', appearance:'none', boxSizing:'border-box' }
+                            },
+                                secs.map(function(sec) {
+                                    return React.createElement("optgroup", { key: sec.key, label: sec.label },
+                                        (sec.weeks||[]).map(function(mon, wi) {
+                                            var dd = wpWeekDays(mon);
+                                            var a = mon.split('-'), b = dd[4].split('-');
+                                            return React.createElement("option", { key: mon, value: mon },
+                                                '第' + (wi+1) + '週　' + (+a[1]) + '/' + (+a[2]) + ' – ' + (+b[1]) + '/' + (+b[2]));
+                                        }));
+                                })
+                            )
                         );
                     })(),
                     React.createElement("div", { style:{overflowY:'auto', flex:1, padding:'4px 0 16px', WebkitOverflowScrolling:'touch', overscrollBehavior:'contain'} },
@@ -11511,16 +11571,7 @@ function App() {
                             if (!sections.length) return React.createElement("div", { style:{padding:'24px 16px', textAlign:'center', color:'rgba(255,255,255,.5)', fontSize:13, lineHeight:1.7} }, "請先到「設定」填寫上／下學期開學日，才能依週次顯示看板");
                             var todayStr = today();
                             // 本週若不在任何學期內（例如寒暑假），改用日期最接近的一週當捲動目標
-                            var todayMon = wpGetMonday(todayStr);
-                            var allW = [];
-                            sections.forEach(function(s){ (s.weeks||[]).forEach(function(w){ allW.push(w); }); });
-                            var anchorWeek = '';
-                            if (allW.indexOf(todayMon) >= 0) anchorWeek = todayMon;
-                            else if (allW.length) {
-                                anchorWeek = allW.reduce(function(best, w) {
-                                    return Math.abs(new Date(w) - new Date(todayMon)) < Math.abs(new Date(best) - new Date(todayMon)) ? w : best;
-                                }, allW[0]);
-                            }
+                            var anchorWeek = wpAnchorWeek();
                             return sections.map(function(sec) {
                                 return React.createElement("div", { key: sec.key, id: 'wp-sec-'+sec.key },
                                     React.createElement("div", { style:{position:'sticky', top:0, zIndex:3, background: theme==='nerv'?'#120400':theme==='nebula'?'#0a0c20':'#12153a', color:'#c8b0ff', fontSize:13, fontWeight:800, padding:'8px 14px', borderBottom:'1px solid rgba(255,255,255,.08)'} }, '【'+sec.label+'】'),
@@ -11537,7 +11588,7 @@ function App() {
                                             var isAnchor = (monday === anchorWeek);
                                             return React.createElement("div", {
                                                 key: monday,
-                                                id: isAnchor ? 'wp-board-current' : undefined,
+                                                id: 'wp-wk-' + monday,
                                                 style:{ margin:'8px 10px', borderRadius:12,
                                                     background: isCurrentWeek ? 'rgba(103,58,183,.18)' : 'rgba(255,255,255,.03)',
                                                     border: isCurrentWeek ? '1px solid rgba(156,100,208,.55)' : (isAnchor ? '1px dashed rgba(156,100,208,.45)' : '1px solid rgba(255,255,255,.07)'),
@@ -11586,7 +11637,7 @@ function App() {
                                                                 return React.createElement("td", { key: ds, className: "wp-td" },
                                                                     items.map(function(item, idx) {
                                                                         return React.createElement("div", { key: idx, className: "wp-item" },
-                                                                            React.createElement("div", { className: "wp-item-text " + item.type, onClick: function(){ hwPickerOpenForWp(ds); } },
+                                                                            React.createElement("div", { className: "wp-item-text " + item.type, onClick: function(){ hwPickerOpenForWpEdit(ds, idx, item); } },
                                                                                 item.content,
                                                                                 item.note ? React.createElement("span", { style:{opacity:.6,fontSize:10,display:"block"} }, item.note) : null
                                                                             ),
@@ -11656,7 +11707,7 @@ function App() {
                                                 React.createElement("div", {
                                                     className: "wp-item-text " + item.type,
                                                     onClick: function() {
-                                                        hwPickerOpenForWp(ds);
+                                                        hwPickerOpenForWpEdit(ds, idx, item);
                                                     }
                                                 },
                                                     item.content,
