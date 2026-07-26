@@ -29,11 +29,13 @@
           -webkit-touch-callout:none;
           cursor:pointer;
         }
-        /* PWA safe area (iPhone notch/home indicator) */
-        body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+        /* PWA safe area (iPhone notch/home indicator)
+           底部安全區由固定導覽／底部面板自行吸收，避免 body 再留一層空白。 */
+        :root{--safe-bottom:env(safe-area-inset-bottom,0px)}
+        body{padding-top:env(safe-area-inset-top,0px);padding-bottom:0}
         header{padding-top:max(14px,env(safe-area-inset-top))}
         body,html{background:#f0f4f8;min-height:100%;-webkit-tap-highlight-color:transparent}
-        .app{min-height:100vh;background:#f0f4f8;font-family:'Noto Sans TC',sans-serif;color:#1a2332;transition:background .3s,color .3s}
+        .app{min-height:100vh;min-height:100dvh;background:#f0f4f8;font-family:'Noto Sans TC',sans-serif;color:#1a2332;transition:background .3s,color .3s}
 
         /* ── THEME TOGGLE BUTTON ── */
         .theme-btn{margin-left:auto;padding:5px 12px;border-radius:8px;border:none;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;background:rgba(255,255,255,.15);color:#fff;transition:all .15s;white-space:nowrap}
@@ -596,8 +598,8 @@
         .att-empty{font-size:13px;color:#aab8cc;text-align:center;padding:8px 0}
         /* 功能2：節次選擇器 */
         .att-num-partial{position:relative}
-        .period-modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;display:flex;align-items:flex-end;justify-content:center;padding:0 0 env(safe-area-inset-bottom,0)}
-        .period-modal-box{background:#fff;border-radius:20px 20px 0 0;padding:20px 20px 28px;width:100%;max-width:480px;box-shadow:0 -8px 40px rgba(0,0,0,.2)}
+        .period-modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:400;display:flex;align-items:flex-end;justify-content:center;padding:0}
+        .period-modal-box{background:#fff;border-radius:20px 20px 0 0;padding:20px 20px max(12px,var(--safe-bottom));width:100%;max-width:480px;box-shadow:0 -8px 40px rgba(0,0,0,.2)}
         .period-modal-title{font-size:15px;font-weight:800;color:#1e3a5f;margin-bottom:4px}
         .period-modal-hint{font-size:12px;color:#aab8cc;margin-bottom:16px}
         .period-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px}
@@ -1649,13 +1651,13 @@
           position:fixed; inset:0; z-index:9500;
           background:rgba(0,0,0,.6);
           display:flex; align-items:flex-end; justify-content:center;
-          padding-bottom:env(safe-area-inset-bottom);
+          padding-bottom:0;
         }
         .gr-dialog {
           width:100%; max-width:520px;
           background:var(--card-bg,#1a1e2e);
           border-radius:16px 16px 0 0;
-          padding:20px 18px 28px;
+          padding:20px 18px max(12px,var(--safe-bottom));
           box-shadow:0 -4px 32px rgba(0,0,0,.5);
           max-height:88vh; overflow-y:auto;
         }
@@ -2039,11 +2041,11 @@
             position: fixed; inset: 0; z-index: 10000;
             background: rgba(0,0,0,.7);
             display: flex; align-items: flex-end; justify-content: center;
-            padding-bottom: env(safe-area-inset-bottom, 0);
+            padding-bottom: 0;
         }
         .wp-input-box {
             background: #1e1b3a; border-radius: 18px 18px 0 0;
-            width: 100%; max-width: 480px; padding: 20px 16px 28px;
+            width: 100%; max-width: 480px; padding: 20px 16px max(12px,var(--safe-bottom));
             box-shadow: 0 -4px 30px rgba(0,0,0,.5);
             display: flex; flex-direction: column; gap: 10px;
         }
@@ -2089,12 +2091,94 @@
         /* ══ END WEEKLY PLAN MODAL ══════════════════════════════════ */
 
 
+        /* ══ v18.1：手機單手導覽、緊湊安全區與一致化彈窗 ════════════ */
+        .mobile-dock{display:none}
+        .v18-sheet-panel{
+          overscroll-behavior:contain;
+          -webkit-overflow-scrolling:touch;
+        }
+        .settings-tabbar{
+          position:sticky;
+          top:0;
+          z-index:25;
+          padding:8px 0;
+          backdrop-filter:blur(14px);
+          -webkit-backdrop-filter:blur(14px);
+        }
+        [data-theme="default"] .settings-tabbar{background:rgba(240,244,248,.93)}
+        [data-theme="nerv"] .settings-tabbar{background:rgba(5,2,0,.93)}
+        [data-theme="nebula"] .settings-tabbar{background:rgba(7,4,15,.91)}
+        .archive-wrap,.settings-view{content-visibility:auto;contain-intrinsic-size:900px}
+        body.v18-modal-open{overscroll-behavior:none}
         :focus-visible{outline:3px solid #42a5f5;outline-offset:2px}
         @media(max-width:640px){
           .nav-btn,.undo-btn{width:44px!important;height:44px!important;min-width:44px!important}
           .hi-row1 .theme-btn{width:44px!important;height:44px!important;min-width:44px!important;padding:0!important}
           .back-btn,.class-switcher-btn,.excel-btn,.day-backup-btn{min-height:44px}
           input,textarea,select{font-size:16px!important}
+          .header-quick-btn{display:none!important}
+          .account-row>span:first-child{display:none}
+          .account-row{padding-top:1px!important}
+          .stor-bar{flex-wrap:nowrap!important;overflow:hidden}
+          .stor-bar .stor-detail{display:none}
+          main,.settings-view,.archive-wrap{padding-bottom:calc(66px + var(--safe-bottom))!important}
+          .mobile-dock{
+            position:fixed;
+            left:0;
+            right:0;
+            bottom:0;
+            z-index:340;
+            display:grid;
+            grid-template-columns:repeat(5,minmax(0,1fr));
+            min-height:calc(60px + var(--safe-bottom));
+            padding:5px 10px max(5px,var(--safe-bottom));
+            border:1px solid rgba(255,255,255,.56);
+            border-radius:20px 20px 0 0;
+            background:rgba(255,255,255,.92);
+            box-shadow:0 -6px 24px rgba(20,42,74,.2);
+            backdrop-filter:blur(18px) saturate(1.2);
+            -webkit-backdrop-filter:blur(18px) saturate(1.2);
+          }
+          .mobile-dock-btn{
+            min-width:0;
+            min-height:50px;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            gap:2px;
+            border:0;
+            border-radius:15px;
+            background:transparent;
+            color:#64748b;
+            font:700 10px/1.2 'Noto Sans TC',sans-serif;
+          }
+          .mobile-dock-btn .dock-icon{font-size:19px;line-height:1}
+          .mobile-dock-btn.active{background:#e7f0fb;color:#1e3a5f}
+          [data-theme="nerv"] .mobile-dock{
+            border-color:rgba(255,102,0,.5);
+            border-radius:4px 4px 0 0;
+            background:rgba(10,3,0,.94);
+            box-shadow:0 0 24px rgba(255,102,0,.2);
+          }
+          [data-theme="nerv"] .mobile-dock-btn{border-radius:2px;color:rgba(255,136,68,.7);font-family:'Share Tech Mono',monospace}
+          [data-theme="nerv"] .mobile-dock-btn.active{background:rgba(255,102,0,.16);color:#ff8844}
+          [data-theme="nebula"] .mobile-dock{
+            border-color:rgba(145,110,255,.34);
+            background:rgba(14,14,38,.93);
+            box-shadow:0 10px 34px rgba(0,0,0,.48);
+          }
+          [data-theme="nebula"] .mobile-dock-btn{color:rgba(215,204,255,.68)}
+          [data-theme="nebula"] .mobile-dock-btn.active{background:rgba(128,93,224,.22);color:#e6ddff}
+          .v18-sheet-overlay{align-items:flex-end!important;padding:0!important}
+          .v18-sheet-panel{
+            width:100%!important;
+            max-width:none!important;
+            max-height:92dvh!important;
+            border-radius:22px 22px 0 0!important;
+            padding-bottom:max(18px,var(--safe-bottom))!important;
+          }
+          .settings-tabbar{margin-left:-2px;margin-right:-2px}
         }
         @media(prefers-reduced-motion:reduce){
           *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
@@ -2824,16 +2908,41 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const COUNSEL_PERIODS = ["早自習", "第1節", "第2節", "第3節", "第4節", "午休", "第5節", "第6節", "放學後"];
 const COUNSEL_TYPES = ["學習", "行為", "情緒", "人際", "家庭", "其他"];
 const COUNSEL_FOLLOWUP = ["需追蹤", "已處理", "轉介"];
-const APP_VERSION = "12.2.0";
+const APP_VERSION = "14.0.1";
 const APP_BUILD_DATE = "2026-07-27";
-const APP_BUILD_ID = "limu-teacher-v14-20260727";
-const APP_CACHE_NAME = "hw-tracker-v14";
+const APP_BUILD_ID = "limu-teacher-v18-1-20260727";
+const APP_CACHE_NAME = "hw-tracker-v18-1";
 window.__LIMU_BUILD__ = Object.freeze({
     appVersion: APP_VERSION,
     buildDate: APP_BUILD_DATE,
     buildId: APP_BUILD_ID,
     cacheName: APP_CACHE_NAME
 });
+
+// v18：大量本機資料採有限併發，兼顧速度與 iPhone Safari 記憶體。
+async function mapWithConcurrency(items, limit, worker) {
+    var list = Array.isArray(items) ? items : [];
+    var output = new Array(list.length);
+    var nextIndex = 0;
+    var workerCount = Math.max(1, Math.min(Number(limit) || 1, list.length || 1));
+    async function runWorker() {
+        while (nextIndex < list.length) {
+            var index = nextIndex++;
+            output[index] = await worker(list[index], index);
+        }
+    }
+    var runners = [];
+    for (var i = 0; i < workerCount; i++) runners.push(runWorker());
+    await Promise.all(runners);
+    return output;
+}
+
+function runWhenIdle(callback, timeout) {
+    if (typeof requestIdleCallback === "function") {
+        return requestIdleCallback(callback, { timeout:Number(timeout) || 800 });
+    }
+    return setTimeout(callback, 32);
+}
 // ── Drive 已改用 Firestore ──
 const gSignIn = typeof window !== "undefined" && window.gSignIn ? window.gSignIn : async () => { throw new Error("請使用 PWA 版本登入 Google"); };
 const LEAVE_TYPES = [
@@ -3166,8 +3275,8 @@ function calendarProfileInfo(calendar) {
     return { rocYear:rocYear, first:first, last:last, needsUpdate:now >= renewal, expired:now >= expiry };
 }
 function nextAcademicSchoolYear(currentYear, referenceDate) {
-    var saved = parseInt(currentYear, 10);
-    if (/^20\d{2}$/.test(String(saved))) return String(saved + 1);
+    var normalized = normalizeAcademicYear(currentYear);
+    if (normalized.valid) return String(normalized.startYear + 1);
     var now = referenceDate instanceof Date ? referenceDate : new Date();
     var academicStart = now.getMonth() + 1 >= 8 ? now.getFullYear() : now.getFullYear() - 1;
     return String(academicStart + 1);
@@ -3195,8 +3304,88 @@ function isValidIsoDate(value) {
     var date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
     return date.getUTCFullYear() === parts[0] && date.getUTCMonth() === parts[1] - 1 && date.getUTCDate() === parts[2];
 }
+// ── v15 統一學年度核心：所有畫面只使用這一套 8 月～隔年 7 月規則 ───────────
+function normalizeAcademicYear(value) {
+    var input = String(value === undefined || value === null ? '' : value).trim();
+    if (!/^\d{3,4}$/.test(input)) {
+        return { valid:false, input:input, startYear:0, westernYear:'', rocYear:0, rangeStart:'', rangeEnd:'', label:'學年度格式錯誤' };
+    }
+    var numeric = parseInt(input, 10);
+    var startYear = input.length === 3 ? numeric + 1911 : numeric;
+    if (startYear < 1912 || startYear > 2200) {
+        return { valid:false, input:input, startYear:0, westernYear:'', rocYear:0, rangeStart:'', rangeEnd:'', label:'學年度超出支援範圍' };
+    }
+    var rocYear = startYear - 1911;
+    var rangeStart = startYear + '-08-01';
+    var rangeEnd = (startYear + 1) + '-07-31';
+    return {
+        valid:true, input:input, startYear:startYear, westernYear:String(startYear), rocYear:rocYear,
+        rangeStart:rangeStart, rangeEnd:rangeEnd,
+        label:rocYear + ' 學年度（西元 ' + rangeStart.replace(/-/g,'/') + '～' + rangeEnd.replace(/-/g,'/') + '）'
+    };
+}
+function academicYearRange(value) {
+    var normalized = normalizeAcademicYear(value);
+    if (normalized.valid) return { valid:true, start:normalized.rangeStart, end:normalized.rangeEnd, startYear:normalized.startYear, rocYear:normalized.rocYear, label:normalized.label };
+    var now = new Date(), fallback = now.getMonth() + 1 >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+    var safe = normalizeAcademicYear(String(fallback));
+    return { valid:false, start:safe.rangeStart, end:safe.rangeEnd, startYear:safe.startYear, rocYear:safe.rocYear, label:safe.label };
+}
+function academicYearForDate(dateStr) {
+    if (!isValidIsoDate(dateStr)) return '';
+    var year = parseInt(dateStr.slice(0,4), 10), month = parseInt(dateStr.slice(5,7), 10);
+    return String(month >= 8 ? year : year - 1);
+}
+function dateInAcademicYear(dateStr, schoolYearValue) {
+    if (!isValidIsoDate(dateStr)) return false;
+    var range = academicYearRange(schoolYearValue);
+    return dateStr >= range.start && dateStr <= range.end;
+}
+function parsePrimaryRecordKey(key) {
+    var text = String(key || ''), modern = text.match(/^(.*):(day|counsel):(\d{4}-\d{2}-\d{2})$/);
+    if (modern) return { classKey:modern[1], kind:modern[2], date:modern[3], legacy:false };
+    var legacy = text.match(/^(day|counsel):(\d{4}-\d{2}-\d{2})$/);
+    return legacy ? { classKey:'', kind:legacy[1], date:legacy[2], legacy:true } : null;
+}
+function summarizeClassDataKeys(keys, classRef, schoolYearValue, includeLegacy) {
+    var aliases = classAliasesFor(classRef), range = academicYearRange(schoolYearValue);
+    var dayDates = {}, counselDates = {}, outsideDates = {};
+    (Array.isArray(keys) ? keys : Object.keys(keys && typeof keys === 'object' ? keys : {})).forEach(function(key) {
+        var parsed = parsePrimaryRecordKey(key);
+        if (!parsed || !isValidIsoDate(parsed.date)) return;
+        var belongs = parsed.legacy ? !!includeLegacy : aliases.indexOf(parsed.classKey) >= 0;
+        if (!belongs) return;
+        if (parsed.kind === 'day') dayDates[parsed.date] = true;
+        else counselDates[parsed.date] = true;
+        if (parsed.date < range.start || parsed.date > range.end) outsideDates[parsed.date] = true;
+    });
+    var dates = Object.keys(dayDates).sort(), counsel = Object.keys(counselDates).sort(), outside = Object.keys(outsideDates).sort();
+    return {
+        days:dates.length, counselDays:counsel.length, dates:dates,
+        first:dates[0] || '', last:dates[dates.length - 1] || '',
+        inRange:dates.filter(function(date){ return date >= range.start && date <= range.end; }).length,
+        outside:outside.length, outsideDates:outside, rangeStart:range.start, rangeEnd:range.end
+    };
+}
+function chooseAcademicLandingDate(schoolYearValue, dataDates, referenceDate) {
+    var range = academicYearRange(schoolYearValue);
+    var ref = isValidIsoDate(referenceDate) ? referenceDate : today();
+    var inRange = Array.from(new Set((Array.isArray(dataDates) ? dataDates : []).filter(function(date) {
+        return isValidIsoDate(date) && date >= range.start && date <= range.end;
+    }))).sort();
+    if (inRange.length) {
+        var refMs = new Date(ref + 'T00:00:00Z').getTime();
+        return inRange.reduce(function(best, date) {
+            return Math.abs(new Date(date + 'T00:00:00Z').getTime() - refMs) <
+                Math.abs(new Date(best + 'T00:00:00Z').getTime() - refMs) ? date : best;
+        }, inRange[0]);
+    }
+    return ref >= range.start && ref <= range.end ? ref : range.start;
+}
 function validateSchoolYearTransitionDates(targetYear, semStart1, semStart2, calendar) {
-    var year = parseInt(targetYear, 10);
+    var normalizedYear = normalizeAcademicYear(targetYear);
+    if (!normalizedYear.valid) return '請輸入民國 3 位數或西元 4 位數學年度';
+    var year = normalizedYear.startYear;
     var first = String(semStart1 || ''), second = String(semStart2 || '');
     if (!isValidIsoDate(first) || first < year + '-08-01' || first > year + '-12-31') {
         return '上學期開學日必須位於 ' + year + ' 年 8 月至 12 月';
@@ -3349,17 +3538,9 @@ function addClassTombstone(cls) {
     }]));
 }
 function academicLandingMonth(schoolYearValue) {
-    var y = parseInt(schoolYearValue, 10), nowKey = today();
-    if (!y) {
-        var now = new Date();
-        return { year:now.getFullYear(), month:now.getMonth(), date:nowKey };
-    }
-    var start = y + '-08-01', end = (y + 1) + '-07-31';
-    if (nowKey >= start && nowKey <= end) {
-        var parts = nowKey.split('-').map(Number);
-        return { year:parts[0], month:parts[1] - 1, date:nowKey };
-    }
-    return { year:y, month:7, date:start };
+    var nowKey = today(), landing = chooseAcademicLandingDate(schoolYearValue, [], nowKey);
+    var parts = landing.split('-').map(Number);
+    return { year:parts[0], month:parts[1] - 1, date:landing };
 }
 window.__limuV14Test = Object.assign(window.__limuV14Test || {}, {
     classAliasesFor:classAliasesFor,
@@ -3370,6 +3551,15 @@ window.__limuV14Test = Object.assign(window.__limuV14Test || {}, {
     mergeArchiveTargetClass:mergeArchiveTargetClass,
     archiveDataKeyBelongsToTarget:archiveDataKeyBelongsToTarget,
     academicLandingMonth:academicLandingMonth
+});
+window.__limuV15Test = Object.assign(window.__limuV15Test || {}, {
+    normalizeAcademicYear:normalizeAcademicYear,
+    academicYearRange:academicYearRange,
+    academicYearForDate:academicYearForDate,
+    dateInAcademicYear:dateInAcademicYear,
+    parsePrimaryRecordKey:parsePrimaryRecordKey,
+    summarizeClassDataKeys:summarizeClassDataKeys,
+    chooseAcademicLandingDate:chooseAcademicLandingDate
 });
 
 // ── 次要資料離線層：週計畫 / 正式輔導紀錄 ────────────────────────────────
@@ -4274,7 +4464,7 @@ function daySummary(rows, groups) {
 // ══════════════════════════════════════════════════
 // ImportToArchive 已移除（改用 Firestore 自動讀取）
 
-function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, schoolName, classes, yearRecords, isNerv, firebaseUid, onBackupDone, onDeleteClass, deleteBusyClassId }) {
+function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, schoolName, classes, yearRecords, isNerv, firebaseUid, onBackupDone, onDeleteClass, deleteBusyClassId, onJumpDate }) {
   var useState = React.useState, useEffect = React.useEffect, useRef = React.useRef;
   const [selYear, setSelYear] = useState(schoolYear || String(new Date().getFullYear()));
   const [selSchool, setSelSchool] = useState(schoolName || '');
@@ -4320,6 +4510,7 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
   const [cleaningArchives, setCleaningArchives] = useState(false);
   const [archiveHistory, setArchiveHistory] = useState([]);
   const [storageInfo, setStorageInfo] = useState(null);
+  const [classLocators, setClassLocators] = useState({});
   const importBackupRef = useRef(null);
   function selectedClassPrefix() {
     var match = (classes || []).find(function(c) {
@@ -4355,17 +4546,62 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
 
   useEffect(function(){ refreshStorageInfo(); }, []);
 
+  // 班級資料定位器：先讀本機，再在已登入且有網路時補上雲端實際天數。
+  useEffect(function() {
+    var cancelled = false;
+    (async function() {
+      try {
+        var keys = await idbKeys(), conflicts = keys.filter(function(key){ return String(key).indexOf('conflict:') === 0; });
+        var next = {};
+        var safeClasses = filterTombstonedClasses(classes || []);
+        safeClasses.forEach(function(cls) {
+          var local = summarizeClassDataKeys(keys, cls, cls.year, false);
+          var encoded = encodeURIComponent(String(cls.id || ''));
+          next[cls.id] = {
+            local:local, cloud:null,
+            pending:getDirtyKeys(String(cls.id || '') + ':').length,
+            conflicts:conflicts.filter(function(key){ return String(key).indexOf(String(cls.id || '')) >= 0 || String(key).indexOf(encoded) >= 0; }).length
+          };
+        });
+        if (!cancelled) setClassLocators(Object.assign({}, next));
+        if (firebaseUid && navigator.onLine) {
+          var remoteLocatorRows = await mapWithConcurrency(safeClasses, 3, async function(cls) {
+            var pfx = String(cls.id || '') + ':';
+            try {
+              var remoteParts = await Promise.all([
+                window.fsGetAll(firebaseUid, pfx + 'day:'),
+                window.fsGetAll(firebaseUid, pfx + 'counsel:')
+              ]);
+              var remoteKeys = Object.keys(remoteParts[0] || {}).concat(Object.keys(remoteParts[1] || {}));
+              return { id:cls.id, cloud:summarizeClassDataKeys(remoteKeys, cls, cls.year, false) };
+            } catch(eRemoteLocator) {
+              return { id:cls.id, cloud:null };
+            }
+          });
+          remoteLocatorRows.forEach(function(row) {
+            if (row && row.id && row.cloud) next[row.id] = Object.assign({}, next[row.id], { cloud:row.cloud });
+          });
+          if (!cancelled) setClassLocators(Object.assign({}, next));
+        }
+      } catch(eLocator) { if (!cancelled) setClassLocators({}); }
+    })();
+    return function(){ cancelled = true; };
+  }, [firebaseUid, classes, schoolYear]);
+
   // 取得所有有資料的學年（從 IDB + yearRecords 合併）
   useEffect(() => {
     (async () => {
       try {
         const keys = await idbKeys();
         const years = new Set();
-        // 從 IDB 實際資料取年份
+        // 從 IDB 實際日期換算「學年度起始年」，不再把 1～7 月誤算成另一學年。
         keys.forEach(k => {
           if (typeof k === 'string') {
-            const m = k.match(/(?:^|:)day:(\d{4})-/);
-            if (m) years.add(m[1]);
+            const parsed = parsePrimaryRecordKey(k);
+            if (parsed && parsed.kind === 'day') {
+              var academicYear = academicYearForDate(parsed.date);
+              if (academicYear) years.add(academicYear);
+            }
           }
         });
         // 從 yearRecords 取歷年記錄
@@ -4388,23 +4624,34 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
     setLoading(true);
     try {
       const keys = await idbKeys();
-      // key 格式（新）：'2026_五年王班:day:2026-06-05' 或（舊）：'day:2026-06-05'
+      // key 格式（新）：'class_id:day:2026-06-05' 或（舊）：'day:2026-06-05'
       var _arcPfx2 = selectedClassPrefix();
-      const prefix = _arcPfx2 + 'day:' + selYear + '-';
-      const prefixOld = 'day:' + selYear + '-'; // 向下相容
-      const yearKeys = keys.filter(k => typeof k === 'string' && (k.startsWith(prefix) || k.startsWith(prefixOld)));
+      var selectedId = _arcPfx2.replace(/:$/, ''), selectedRange = academicYearRange(selYear);
+      const yearKeys = keys.filter(function(k) {
+        var parsed = parsePrimaryRecordKey(k);
+        return parsed && parsed.kind === 'day' &&
+          (parsed.classKey === selectedId || parsed.legacy) &&
+          parsed.date >= selectedRange.start && parsed.date <= selectedRange.end;
+      });
       const hwCount = {};      // 各作業繳交次數
       const absentMap = {};    // 各學生請假天數
       const groupSnapshots = {};  // 每月分組快照（從資料推算）
       let totalDays = 0;
       let totalAbsent = 0;
 
-      for (const k of yearKeys) {
-        const data = await idbGet(k);
-        if (!data) continue;
+      const yearRows = await mapWithConcurrency(yearKeys, 12, async function(k) {
+        try {
+          const data = await idbGet(k);
+          if (!data) return null;
+          return typeof data === 'string' ? JSON.parse(data) : data;
+        } catch(e) {
+          return null;
+        }
+      });
+
+      for (const parsed of yearRows) {
+        if (!parsed) continue;
         totalDays++;
-        let parsed;
-        try { parsed = typeof data === 'string' ? JSON.parse(data) : data; } catch(e) { continue; }
 
         // 統計作業
         if (parsed.rows) {
@@ -4473,12 +4720,16 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
         setFsLoaded(false);
     (async () => {
       try {
-        // 從 Firestore 讀取該班級的所有 day: 資料
+        // 從 Firestore 讀取該班級資料，再依完整學年度（8 月～隔年 7 月）篩選。
         var allData = await window.fsGetAll(firebaseUid, _arcPfx+'day:');
+        var cloudRange = academicYearRange(selYear);
         var count = 0;
         var pendingCloudDays = [];
         for (var k in allData) {
-          if (k.startsWith(_arcPfx+'day:' + selYear + '-')) {
+          var parsedCloudKey = parsePrimaryRecordKey(k);
+          if (parsedCloudKey && parsedCloudKey.kind === 'day' &&
+              parsedCloudKey.classKey === _arcPfx.replace(/:$/, '') &&
+              parsedCloudKey.date >= cloudRange.start && parsedCloudKey.date <= cloudRange.end) {
             pendingCloudDays.push({ key:k, val:allData[k] });
             count++;
           }
@@ -4977,7 +5228,7 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
             },
               React.createElement("div", { style:{minWidth:0,flex:1,paddingRight:4} },
                 React.createElement("div", { style:{fontWeight:700,fontSize:14,color:isNerv?'#ffa070':'#1e3a5f',overflowWrap:'anywhere'} },
-                  r.year + " 年（" + (parseInt(r.year, 10) - 1911) + " 學年度）　" + (r.school||'') + "　" + (r.className||'')),
+                  (normalizeAcademicYear(r.year).valid ? normalizeAcademicYear(r.year).rocYear + " 學年度" : r.year + " 年") + "　" + (r.school||'') + "　" + (r.className||'')),
                 React.createElement("div", { style:{fontSize:11,color:'#aaa',marginTop:2} },
                   r.isCurrent && archiveMeta
                     ? "備份：" + new Date(archiveMeta.archivedAt).toLocaleString() + "　儲存於：" + archiveMeta.source
@@ -5001,6 +5252,21 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
                   'aria-label':'完整刪除 ' + (r.className || '班級'),
                   style:{padding:'5px 8px',borderRadius:9,border:isNerv?'1px solid rgba(255,80,80,.45)':'1px solid #ef9a9a',background:isNerv?'rgba(255,40,40,.12)':'#fff1f1',color:isNerv?'#ff7777':'#c62828',fontSize:11,fontWeight:800,cursor:deleteBusyClassId?'wait':'pointer',opacity:deleteBusyClassId&&deleteBusyClassId!==r.classId?0.45:1}
                 }, deleteBusyClassId === r.classId ? '刪除中…' : '🗑 完整刪除'))
+            ),
+            classLocators[r.classId] && React.createElement("div", { style:{marginTop:8,padding:'8px 10px',borderRadius:9,background:isNerv?'rgba(0,180,255,.05)':'#f2f7fb',fontSize:10.5,lineHeight:1.65,color:isNerv?'#84c9ff':'#52708f'} },
+              React.createElement("div", null,
+                "本機 " + classLocators[r.classId].local.days + " 天",
+                "｜雲端 " + (classLocators[r.classId].cloud ? classLocators[r.classId].cloud.days + " 天" : (firebaseUid && navigator.onLine ? "讀取中" : "未連線")),
+                "｜待同步 " + classLocators[r.classId].pending,
+                "｜衝突 " + classLocators[r.classId].conflicts),
+              React.createElement("div", null,
+                "資料範圍：" + (classLocators[r.classId].local.first ? classLocators[r.classId].local.first + "～" + classLocators[r.classId].local.last : "尚無本機資料"),
+                classLocators[r.classId].local.outside ? "｜⚠ 範圍外 " + classLocators[r.classId].local.outside + " 天（仍保留）" : "",
+                safeGet("hw5ren:lastSync") ? "｜最近同步 " + safeGet("hw5ren:lastSync") : ""),
+              classLocators[r.classId].local.first && React.createElement("div", { style:{display:'flex',gap:6,marginTop:6,flexWrap:'wrap'} },
+                React.createElement("button", { onClick:function(e){e.stopPropagation();if(onJumpDate)onJumpDate(r.classId,classLocators[r.classId].local.first);},style:{padding:'4px 8px',border:'none',borderRadius:8,background:isNerv?'rgba(0,170,255,.12)':'#e3f2fd',color:isNerv?'#80d0ff':'#1565c0',fontSize:10,fontWeight:800,cursor:'pointer'} }, "跳到第一筆"),
+                React.createElement("button", { onClick:function(e){e.stopPropagation();if(onJumpDate)onJumpDate(r.classId,classLocators[r.classId].local.last);},style:{padding:'4px 8px',border:'none',borderRadius:8,background:isNerv?'rgba(0,170,255,.12)':'#e3f2fd',color:isNerv?'#80d0ff':'#1565c0',fontSize:10,fontWeight:800,cursor:'pointer'} }, "跳到最後一筆")
+              )
             ),
             r.isCurrent && React.createElement("div", { style:{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' } },
               React.createElement("button", {
@@ -5079,7 +5345,7 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
             color: selYear===y ? '#fff' : (isNerv?'rgba(255,102,0,.7)':'#555'),
             boxShadow: selYear===y ? '0 2px 8px rgba(0,0,0,.2)' : 'none',
           }
-        }, y + " 年")
+        }, (normalizeAcademicYear(y).valid ? normalizeAcademicYear(y).rocYear + " 學年度" : y + " 年"))
       )
     ),
 
@@ -5191,7 +5457,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
         return { grade:'', core:raw.replace(/\u73ED$/, '').trim() };
     }
     var [showAddClass, setShowAddClass] = React.useState(false);
-    var [newYear, setNewYear] = React.useState(String(new Date().getFullYear()));
+    var [newYear, setNewYear] = React.useState(academicYearForDate(today()));
     var [newSchool, setNewSchool] = React.useState("");
     var [newGrade, setNewGrade] = React.useState("");
     var [newClassCore, setNewClassCore] = React.useState("");
@@ -5260,14 +5526,16 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
     }
     function handleAddClass() {
         if (!newYear.trim() || !newClass.trim()) { alert("請填寫學年度和班級名稱"); return; }
-        var added = addClass({ year: newYear.trim(), school: newSchool.trim(), className: newClass.trim() });
+        var normalized = normalizeAcademicYear(newYear);
+        if (!normalized.valid) { alert("學年度請輸入民國 3 位數（例如 114）或西元 4 位數（例如 2025）"); return; }
+        var added = addClass({ year: normalized.westernYear, school: newSchool.trim(), className: newClass.trim() });
         if (added && added.duplicate) {
             setShowAddClass(false);
             alert("ℹ️ 相同學年度與班級已存在，已切換到原有班級。");
             return;
         }
         setShowAddClass(false);
-        setNewYear(String(new Date().getFullYear()));
+        setNewYear(academicYearForDate(today()));
         setNewSchool(""); setNewGrade(""); setNewClassCore("");
         setPendingGroupTab(true);
         alert("✅ 班級已新增並切換！");
@@ -5341,8 +5609,13 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
     async function loadSlipHist() {
         setSlipHistLoading(true);
         try {
-            var _sPfx = schoolYear + '_' + className + ':';
-            var allKeys = (await idbKeys()).filter(function(k){ return k.startsWith(_sPfx+'day:'+schoolYear+'-') || k.startsWith('day:'+schoolYear+'-'); });
+            var _sClassKey = currentClassKey();
+            var allKeys = (await idbKeys()).filter(function(k){
+                var parsed = parsePrimaryRecordKey(k);
+                return parsed && parsed.kind === 'day' &&
+                    (parsed.classKey === _sClassKey || parsed.legacy) &&
+                    dateInAcademicYear(parsed.date, schoolYear);
+            });
             var allMembers = groups.reduce(function(acc,g){return acc.concat(g.members);}, []).sort(function(a,b){return a-b;});
             var byMonth = {};
             for (var ki = 0; ki < allKeys.length; ki++) {
@@ -5428,18 +5701,47 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
             alert("每組至少需要1個座號");
             return;
         }
+        var normalizedYear = normalizeAcademicYear(draftYear);
+        if (!normalizedYear.valid) {
+            alert("學年度請輸入民國 3 位數（例如 114）或西元 4 位數（例如 2025）");
+            return;
+        }
+        var previousYear = normalizeAcademicYear(schoolYear);
+        if (!previousYear.valid || previousYear.westernYear !== normalizedYear.westernYear) {
+            var targetSummary = summarizeClassDataKeys(
+                await idbKeys(),
+                { id:currentClassKey(), classKey:currentClassKey(), year:schoolYear, className:className },
+                normalizedYear.westernYear,
+                false
+            );
+            var previewLines = [
+                "即將修正學年度：",
+                (previousYear.valid ? previousYear.label : String(schoolYear || "未設定")) + " → " + normalizedYear.label,
+                "",
+                "✓ 班級 ID 保持不變：" + (currentClassKey() || "尚未建立"),
+                "✓ 不搬動、不刪除任何原始資料",
+                "目前找到 " + targetSummary.days + " 天資料" +
+                    (targetSummary.first ? "（" + targetSummary.first + "～" + targetSummary.last + "）" : ""),
+                "新學年度範圍內 " + targetSummary.inRange + " 天" +
+                    (targetSummary.outside ? "，範圍外 " + targetSummary.outside + " 天仍會保留並可搜尋" : ""),
+                "",
+                "儲存後會自動跳到最接近今天、且有資料的日期。確定繼續？"
+            ];
+            if (!window.confirm(previewLines.join("\n"))) return;
+        }
         // 寫回對應版本（找不到時視為更新最新版本，向下相容無版本系統的舊資料）
         var nextVersions = (groupVersions && groupVersions.length > 0)
             ? groupVersions.map(function(v){ return v.verId === selectedVerId ? Object.assign({}, v, { groups: draft }) : v; })
             : [{ verId: 1, effectiveDate: '2000-01-01', groups: draft }];
         var ok = await saveSettingsAtomic({
-            className: draftClass.trim(), schoolName: draftSchool.trim(), schoolYear: draftYear.trim(),
+            className: draftClass.trim(), schoolName: draftSchool.trim(), schoolYear: normalizedYear.westernYear,
             semStart1: draftSemStart1.trim(), semStart2: draftSemStart2.trim(),
             semEnd1: draftSemEnd1.trim(), semEnd2: draftSemEnd2.trim(),
             classSize: Math.max(1, parseInt(draftClassSize, 10) || 40),
             groups: JSON.parse(JSON.stringify(draft)), groupVersions: nextVersions
         });
         if (!ok) { alert("設定無法儲存，請確認瀏覽器儲存空間"); return; }
+        setDraftYear(normalizedYear.westernYear);
         setSaved(true);
         setTimeout(() => { setSaved(false); }, 1200);
     }
@@ -5458,11 +5760,13 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
     var transitionDuplicate = findExistingSchoolYearTransition(
         classes, currentClassKey(), transitionForm.year, transitionForm.schoolName, transitionForm.className
     );
-    return (React.createElement("main", { style: { padding: 12, overflowY: "auto", flex: 1 } },
+    var draftYearPreview = normalizeAcademicYear(draftYear);
+    var newYearPreview = normalizeAcademicYear(newYear);
+    return (React.createElement("main", { className:"settings-view", style: { padding: 12, overflowY: "auto", flex: 1 } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 16 } },
             React.createElement("button", { onClick: onClose, style: { background: nerv ? "rgba(255,102,0,.1)" : "rgba(30,58,95,.1)", border: "none", color: nerv ? "#ff6600" : "#1e3a5f", padding: "6px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 700 } }, nerv ? "\u25C4 RETURN" : "\u2190 \u8FD4\u56DE"),
             React.createElement("span", { style: { fontSize: 18, fontWeight: 900, color: nerv ? "#ff6600" : "#1e3a5f", flex: 1 } }, nerv ? "\u2699 SYSTEM CONFIG" : "\u2699\uFE0F \u73ED\u7D1A\u8A2D\u5B9A")),
-        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 16 } },
+        React.createElement("div", { className:"settings-tabbar", style: { display: "flex", gap: 8, marginBottom: 16 } },
             React.createElement("button", { onClick: function(){ setSettingsTab('class'); }, style: { flex: 1, padding: "10px 0", border: "none", borderRadius: 10, cursor: "pointer", fontWeight: 800, fontSize: 14, fontFamily: "inherit",
                 background: settingsTab === 'class' ? (nerv ? "#ff6600" : "#1e3a5f") : (nerv ? "rgba(255,102,0,.1)" : "#eef2f8"),
                 color: settingsTab === 'class' ? "#fff" : (nerv ? "rgba(255,102,0,.6)" : "#6a8aaa"),
@@ -5491,8 +5795,8 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                     React.createElement("span", { style:{fontWeight:900,color:nerv?"#ff8844":"#1e3a5f"} }, "\u73ED")),
                 React.createElement("div", { style: { display:"flex", gap:12, marginBottom:12 } },
                     React.createElement("div", { style:{ flex:1 } },
-                        React.createElement("label", { style: lbl }, nerv ? "// YEAR //" : "\u5B78\u5E74\uFF08\u897F\u5143\u5E74\uFF09"),
-                        React.createElement("input", { style: inp, value: draftYear, onFocus: selAll, onChange: e => setDraftYear(e.target.value.replace(/[^0-9]/g, '')), placeholder: "\u4F8B\uFF1A2026", maxLength: 4, type: "text", inputMode: "numeric" })),
+                        React.createElement("label", { style: lbl }, nerv ? "// ACADEMIC YEAR //" : "\u5B78\u5E74\uFF08\u6C11\u570B\u6216\u897F\u5143\uFF09"),
+                        React.createElement("input", { style: inp, value: draftYear, onFocus: selAll, onChange: e => setDraftYear(e.target.value.replace(/[^0-9]/g, '').slice(0,4)), onBlur:function(){ var n=normalizeAcademicYear(draftYear); if(n.valid)setDraftYear(n.westernYear); }, placeholder: "\u4F8B\uFF1A114 \u6216 2025", maxLength: 4, type: "text", inputMode: "numeric" })),
                     React.createElement("div", { style:{ flex:1 } },
                         React.createElement("label", { style: lbl }, nerv ? "// CLASS SIZE //" : "\u5168\u73ED\u4EBA\u6578"),
                         React.createElement("input", { style: inp, value: draftClassSize,
@@ -5507,14 +5811,17 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                             placeholder: "27", maxLength: 3, type: "text", inputMode: "numeric" }))),
                 (draftYear || draftSchool || draftClass) && (React.createElement("p", { style: { fontSize: 12, color: nerv ? "rgba(255,102,0,.6)" : "#8a9db5", marginTop: 4 } },
                     nerv ? "// \u9810\u89BD\uFF1A" : "\u9810\u89BD\uFF1A",
-                    React.createElement("span", { style: { fontWeight: 700, color: nerv ? "#ffaa44" : "#1e3a5f" } }, [draftYear && draftYear+"\u5E74", draftSchool, draftClass].filter(Boolean).join(" "))))),
+                    React.createElement("span", { style: { fontWeight: 700, color: nerv ? "#ffaa44" : "#1e3a5f" } }, [draftYearPreview.valid ? draftYearPreview.label : draftYear, draftSchool, draftClass].filter(Boolean).join(" ")))),
+                draftYearPreview.valid && React.createElement("div", { style:{marginTop:8,padding:"9px 11px",borderRadius:10,background:nerv?"rgba(255,102,0,.07)":"#eef6ff",color:nerv?"#ff9955":"#315f8d",fontSize:11,lineHeight:1.55} },
+                    "\u8CC7\u6599\u7BC4\u570D\uFF1A" + draftYearPreview.rangeStart + "\uFF5E" + draftYearPreview.rangeEnd + "\u3002\u4FEE\u6539\u5B78\u5E74\u4E0D\u6703\u66F4\u63DB\u73ED\u7D1A ID\uFF0C\u4E5F\u4E0D\u6703\u642C\u52D5\u6216\u522A\u9664\u539F\u7D00\u9304\u3002")),
             React.createElement("div", { style: Object.assign({}, panel, { border: nerv ? "1px solid rgba(255,102,0,.3)" : "2px dashed #d0d8e8" }) },
                 React.createElement("div", { style: { display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: showAddClass ? 14 : 0 } },
                     React.createElement("div", { style: { fontSize: 15, fontWeight: 800, color: nerv ? "#ffaa44" : "#1e3a5f" } }, nerv ? "// ADD NEW UNIT //" : "\u2795 \u65B0\u589E\u73ED\u7D1A"),
                     React.createElement("button", { onClick: () => setShowAddClass(p => !p), style: { background: nerv?"rgba(255,102,0,.15)":"rgba(30,58,95,.1)", border:"none", color: nerv?"#ff8844":"#1e3a5f", padding:"5px 12px", borderRadius:8, cursor:"pointer", fontSize:12, fontWeight:700 } }, showAddClass ? "\u25B2 \u6536\u8D77" : "\u25BC \u5C55\u958B")),
                 showAddClass && React.createElement(React.Fragment, null,
-                    React.createElement("label", { style: lbl }, nerv ? "// YEAR //" : "\u5B78\u5E74\uFF08\u897F\u5143\u5E74\uFF09"),
-                    React.createElement("input", { style: Object.assign({}, inp, { marginBottom: 10 }), value: newYear, onFocus: selAll, onChange: e => setNewYear(e.target.value.replace(/[^0-9]/g, '')), placeholder: "\u4F8B\uFF1A2027", maxLength: 4, type: "text", inputMode: "numeric" }),
+                    React.createElement("label", { style: lbl }, nerv ? "// ACADEMIC YEAR //" : "\u5B78\u5E74\uFF08\u6C11\u570B\u6216\u897F\u5143\uFF09"),
+                    React.createElement("input", { style: Object.assign({}, inp, { marginBottom: 6 }), value: newYear, onFocus: selAll, onChange: e => setNewYear(e.target.value.replace(/[^0-9]/g, '').slice(0,4)), onBlur:function(){ var n=normalizeAcademicYear(newYear); if(n.valid)setNewYear(n.westernYear); }, placeholder: "\u4F8B\uFF1A115 \u6216 2026", maxLength: 4, type: "text", inputMode: "numeric" }),
+                    newYearPreview.valid && React.createElement("p", { style:{fontSize:11,color:nerv?"rgba(255,153,85,.75)":"#6a8aaa",margin:"0 0 10px"} }, newYearPreview.label),
                     React.createElement("label", { style: lbl }, nerv ? "// SCHOOL //" : "\u5B78\u6821\u540D\u7A31"),
                     React.createElement("input", { style: Object.assign({}, inp, { marginBottom: 10 }), value: newSchool, onChange: e => setNewSchool(e.target.value), placeholder: "\u4F8B\uFF1A\u5927\u5B89\u570B\u5C0F", maxLength: 20 }),
                     React.createElement("label", { style: lbl }, nerv ? "// CLASS NAME //" : "\u73ED\u7D1A\u540D\u7A31"),
@@ -6223,6 +6530,10 @@ function App() {
     async function saveSettingsAtomic(next) {
         var localSaved = false;
         try {
+            var previousAcademicYear = normalizeAcademicYear(schoolYear);
+            var normalizedNextYear = normalizeAcademicYear(next && next.schoolYear);
+            if (!normalizedNextYear.valid) throw new Error('學年度格式錯誤');
+            next = Object.assign({}, next, { schoolYear:normalizedNextYear.westernYear });
             var cid = _sl.get("hw5ren:activeClass") || activeClassId;
             if (!cid) {
                 cid = "class_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,7);
@@ -6264,6 +6575,24 @@ function App() {
             markSettingsDirty('settings:main', '班級設定');
             markSettingsDirty('groupVersions:' + cid, '組別版本');
             localSaved = true;
+
+            // 學年度修正只改設定，不改資料鍵；畫面跳到新範圍內最接近今天的有資料日期。
+            if (!previousAcademicYear.valid || previousAcademicYear.westernYear !== normalizedNextYear.westernYear) {
+                try {
+                    var allKeysForLanding = await idbKeys();
+                    var landingSummary = summarizeClassDataKeys(
+                        allKeysForLanding,
+                        { id:cid, classKey:cid, year:normalizedNextYear.westernYear, className:next.className },
+                        normalizedNextYear.westernYear,
+                        false
+                    );
+                    var landingDate = chooseAcademicLandingDate(normalizedNextYear.westernYear, landingSummary.dates, today());
+                    var landingParts = landingDate.split('-').map(Number);
+                    setCurYear(landingParts[0]); setCurMonth(landingParts[1] - 1); setSelDate(landingDate);
+                    try { safeSet('hw5ren:lastDate', landingDate); } catch(exLastDate) {}
+                    setTimeout(function(){ doLoadMonth(landingParts[0], landingParts[1] - 1); }, 80);
+                } catch(exLanding) { /* 顯示定位失敗不影響已完成的設定儲存 */ }
+            }
 
             if (firebaseUid) {
                 setDriveStatus('syncing');
@@ -6878,6 +7207,7 @@ function App() {
     const [dayExempt, setDayExempt] = useState({}); // { [hwName]: Set<number> }
     const [monthDays, setMonthDays] = useState({});
     const [loading, setLoading] = useState(false);
+    const monthLoadSeqRef = useRef(0);
     const [theme, setTheme] = useState(() => safeGet("hw5ren:theme") || "default");
     const [showThemeMenu, setShowThemeMenu] = useState(false);
     const [showGearMenu, setShowGearMenu] = useState(false);
@@ -6911,11 +7241,8 @@ function App() {
     const isNerv = theme === "nerv";
     const isNebula = theme === "nebula";
     function academicCalendarRange() {
-        var year = parseInt(schoolYear,10);
-        if (!/^20\d{2}$/.test(String(year))) {
-            var now = new Date(); year = now.getMonth()+1 >= 8 ? now.getFullYear() : now.getFullYear()-1;
-        }
-        return { start:year+'-08-01', end:(year+1)+'-07-31' };
+        var range = academicYearRange(schoolYear);
+        return { start:range.start, end:range.end };
     }
     function stageCalendarCandidates(events, append) {
         var incoming = Array.isArray(events) ? events : [], existing = append ? calendarCandidates : [], byId = {};
@@ -7701,12 +8028,25 @@ function App() {
         }
     }
     // Header subtitle
-    const headerSub = React.useMemo(() => [schoolYear && schoolYear+"年", schoolName, className].filter(Boolean).join(" "), [schoolYear, schoolName, className]);
+    const headerSub = React.useMemo(function() {
+        var normalized = normalizeAcademicYear(schoolYear);
+        return [normalized.valid ? normalized.rocYear + "\u5B78\u5E74\u5EA6" : schoolYear, schoolName, className].filter(Boolean).join(" ");
+    }, [schoolYear, schoolName, className]);
     // ── 備份狀態 ──
     const todayStr = today();
     const [lastSyncTime, setLastSyncTime] = useState(() => safeGet("hw5ren:lastSync") || "");
     const [syncEpoch, setSyncEpoch] = useState(() => Number(safeGet("hw5ren:lastSyncEpoch")) || 0);
     const [backupEpoch, setBackupEpoch] = useState(() => Number(safeGet("hw5ren:lastBackupEpoch")) || 0);
+    const [dataLocator, setDataLocator] = useState({ loading:true, local:null, cloud:null, pending:0, conflicts:0, checkedAt:0 });
+    const [showTodayDashboard, setShowTodayDashboard] = useState(false);
+    const [todayDashboardData, setTodayDashboardData] = useState(null);
+    const [todayDashboardBusy, setTodayDashboardBusy] = useState(false);
+    const [batchUndoAction, setBatchUndoAction] = useState(null);
+    const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+    const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+    const [globalSearchResults, setGlobalSearchResults] = useState([]);
+    const [globalSearchBusy, setGlobalSearchBusy] = useState(false);
+    const [globalSearchType, setGlobalSearchType] = useState('all');
     // getDriveFilename 已移除
     function saveYearRecord(year, school, cls) {
         if (!year && !cls)
@@ -7831,11 +8171,283 @@ function App() {
         return function() { window.removeEventListener('hw-network-online', handleOnline); };
     }, [authed, firebaseUid]);
     async function doLoadMonth(y, m) {
+        var loadSeq = ++monthLoadSeqRef.current;
         setLoading(true);
-        const entries = await loadMonth(y, m);
-        setMonthDays(entries);
-        setLoading(false);
+        try {
+            const entries = await loadMonth(y, m);
+            // 快速連點月份時，只採用最後一次要求，避免舊月份較晚完成後蓋回畫面。
+            if (loadSeq !== monthLoadSeqRef.current) return;
+            setMonthDays(entries);
+            runWhenIdle(function(){ refreshDataLocator(false); }, 700);
+        } catch(eMonthLoad) {
+            if (loadSeq === monthLoadSeqRef.current) {
+                setStor({ state:"error", msg:"⚠️ 月份載入失敗", detail:"原資料未被修改，請重試或使用診斷" });
+            }
+        } finally {
+            if (loadSeq === monthLoadSeqRef.current) setLoading(false);
+        }
     }
+    async function refreshDataLocator(includeCloud) {
+        var cid = _sl.get('hw5ren:activeClass') || activeClassId;
+        if (!cid) { setDataLocator({ loading:false, local:null, cloud:null, pending:0, conflicts:0, checkedAt:Date.now() }); return; }
+        try {
+            var keys = await idbKeys();
+            var cls = (classes || []).find(function(item){ return item && item.id === cid; }) ||
+                { id:cid, year:schoolYear, className:className };
+            var local = summarizeClassDataKeys(keys, cls, schoolYear, false);
+            var conflicts = keys.filter(function(key){
+                var text = String(key || '');
+                return text.indexOf('conflict:') === 0 &&
+                    (text.indexOf(cid) >= 0 || text.indexOf(encodeURIComponent(cid)) >= 0);
+            }).length;
+            var pending = getDirtyKeys(cid + ':').length + getDirtySettingKeys().length;
+            setDataLocator(function(prev){ return {
+                loading:false, local:local, cloud:includeCloud === false ? prev.cloud : null,
+                pending:pending, conflicts:conflicts, checkedAt:Date.now()
+            }; });
+            if (includeCloud !== false && firebaseUid && navigator.onLine) {
+                try {
+                    var remote = await Promise.all([
+                        window.fsGetAll(firebaseUid, cid + ':day:'),
+                        window.fsGetAll(firebaseUid, cid + ':counsel:')
+                    ]);
+                    var cloudKeys = Object.keys(remote[0] || {}).concat(Object.keys(remote[1] || {}));
+                    var cloud = summarizeClassDataKeys(cloudKeys, cls, schoolYear, false);
+                    setDataLocator({ loading:false, local:local, cloud:cloud, pending:pending, conflicts:conflicts, checkedAt:Date.now() });
+                } catch(eCloudLocator) { /* 本機定位仍可正常使用 */ }
+            }
+        } catch(eLocator) {
+            setDataLocator(function(prev){ return Object.assign({}, prev, { loading:false, checkedAt:Date.now() }); });
+        }
+    }
+    function jumpToClassDate(classId, dateStr) {
+        if (!isValidIsoDate(dateStr)) return;
+        var targetClass = (classes || []).find(function(item){ return item && item.id === classId; });
+        if (targetClass && (_sl.get('hw5ren:activeClass') || activeClassId) !== targetClass.id) switchClass(targetClass);
+        var parts = dateStr.split('-').map(Number);
+        setCurYear(parts[0]); setCurMonth(parts[1] - 1); setSelDate(dateStr); setView('month');
+        try { safeSet('hw5ren:lastDate', dateStr); } catch(e) {}
+        setTimeout(function(){ doLoadMonth(parts[0], parts[1] - 1); }, 80);
+        setShowGlobalSearch(false); setShowTodayDashboard(false);
+    }
+    async function openTodayWorkspace() {
+        setShowTodayDashboard(true); setTodayDashboardBusy(true);
+        try {
+            var dateStr = today(), dayData = await loadDay(dateStr);
+            var dateGroups = getGroupsForDate(dateStr) || [];
+            var absent = new Set();
+            ['personal','sick','public'].forEach(function(type){
+                var seats = dayData.attendance && dayData.attendance[type];
+                (seats instanceof Set ? Array.from(seats) : (Array.isArray(seats) ? seats : [])).forEach(function(seat){ absent.add(Number(seat)); });
+            });
+            var homework = (dayData.rows || []).filter(function(row){ return row && row.hwName; }).map(function(row) {
+                var missing = [], completed = 0, expected = 0;
+                dateGroups.forEach(function(group) {
+                    var done = row.groupData && row.groupData[group.id] instanceof Set ? row.groupData[group.id] : new Set(row.groupData && row.groupData[group.id] || []);
+                    (group.members || []).forEach(function(seat) {
+                        var exempt = dayData.exempt && dayData.exempt[row.hwName] instanceof Set ? dayData.exempt[row.hwName] : new Set(dayData.exempt && dayData.exempt[row.hwName] || []);
+                        if (absent.has(Number(seat)) || exempt.has(Number(seat))) return;
+                        expected++;
+                        if (done.has(Number(seat))) completed++; else missing.push(Number(seat));
+                    });
+                });
+                return { name:row.hwName, completed:completed, expected:expected, missing:missing };
+            });
+            var manualEvent = schoolCalendar && schoolCalendar[dateStr] ? [{ title:schoolCalendar[dateStr], important:true, sourceLabel:'手動行事曆' }] : [];
+            var publicEvents = (schoolEventStore.events || []).filter(function(item){ return item.date === dateStr; });
+            var upcomingEnd = addIsoDays(dateStr, 7);
+            var upcomingImportant = (schoolEventStore.events || []).filter(function(item){
+                return item.important && item.date > dateStr && item.date <= upcomingEnd;
+            }).sort(function(a,b){ return a.date.localeCompare(b.date); });
+            var planItems = [];
+            (wpPlans || []).forEach(function(plan){
+                (plan.days && Array.isArray(plan.days[dateStr]) ? plan.days[dateStr] : []).forEach(function(item){ planItems.push(item); });
+            });
+            var guidance = grForClass(grRecords).filter(function(record){ return record.date === dateStr; });
+            setTodayDashboardData({
+                date:dateStr, homework:homework,
+                attendance:{
+                    personal:dayData.attendance.personal ? dayData.attendance.personal.size : 0,
+                    sick:dayData.attendance.sick ? dayData.attendance.sick.size : 0,
+                    public:dayData.attendance.public ? dayData.attendance.public.size : 0,
+                    late:dayData.attendance.late ? dayData.attendance.late.size : 0
+                },
+                events:manualEvent.concat(publicEvents), upcomingImportant:upcomingImportant,
+                plans:planItems, guidance:guidance, rawDay:dayData
+            });
+        } catch(e) {
+            setTodayDashboardData({ date:today(), homework:[], attendance:{personal:0,sick:0,public:0,late:0}, events:[], upcomingImportant:[], plans:[], guidance:[], error:String(e && e.message || e) });
+        }
+        setTodayDashboardBusy(false);
+    }
+    async function completeTodayHomeworkBatch() {
+        if (!todayDashboardData || !todayDashboardData.rawDay) return;
+        var pendingCount = todayDashboardData.homework.reduce(function(sum,item){ return sum + item.missing.length; }, 0);
+        if (!pendingCount) return;
+        if (!window.confirm('將把今天所有作業的 ' + pendingCount + ' 筆待確認座號批次標記為已交。\n完成後 30 秒內可按「復原批次操作」。確定？')) return;
+        setTodayDashboardBusy(true);
+        try {
+            var before = todayDashboardData.rawDay, dateStr = todayDashboardData.date;
+            var absent = new Set();
+            ['personal','sick','public'].forEach(function(type){ Array.from(before.attendance[type] || []).forEach(function(seat){ absent.add(Number(seat)); }); });
+            var dateGroups = getGroupsForDate(dateStr) || [];
+            var nextRows = (before.rows || []).map(function(row) {
+                var groupData = Object.assign({}, row.groupData || {});
+                dateGroups.forEach(function(group) {
+                    var done = new Set(groupData[group.id] instanceof Set ? Array.from(groupData[group.id]) : (groupData[group.id] || []));
+                    (group.members || []).forEach(function(seat){ if (!absent.has(Number(seat))) done.add(Number(seat)); });
+                    groupData[group.id] = done;
+                });
+                return Object.assign({}, row, { groupData:groupData });
+            });
+            await saveDay(dateStr, nextRows, before.attendance, before.exempt, before.attendancePeriod, before.slips);
+            var undoToken = { date:dateStr, before:before, expiresAt:Date.now() + 30000 };
+            setBatchUndoAction(undoToken);
+            setTimeout(function(){ setBatchUndoAction(function(current){ return current && current.expiresAt === undoToken.expiresAt ? null : current; }); }, 30000);
+            try { scheduleAutoSync(); } catch(eSync) {}
+            await doLoadMonth(curYear, curMonth);
+            await openTodayWorkspace();
+        } catch(e) { alert('批次操作失敗，原資料未被清除：' + String(e && e.message || e)); }
+        setTodayDashboardBusy(false);
+    }
+    async function undoTodayHomeworkBatch() {
+        var action = batchUndoAction;
+        if (!action || !action.before || Date.now() > action.expiresAt) { setBatchUndoAction(null); return; }
+        setTodayDashboardBusy(true);
+        try {
+            var before = action.before;
+            await saveDay(action.date, before.rows, before.attendance, before.exempt, before.attendancePeriod, before.slips);
+            setBatchUndoAction(null);
+            try { scheduleAutoSync(); } catch(eSync) {}
+            await doLoadMonth(curYear, curMonth);
+            await openTodayWorkspace();
+        } catch(e) { alert('復原失敗，請勿關閉 App，並立即使用診斷或備份確認資料'); }
+        setTodayDashboardBusy(false);
+    }
+    async function runGlobalSearch(queryValue) {
+        var query = String(queryValue === undefined ? globalSearchQuery : queryValue).trim();
+        setGlobalSearchQuery(query);
+        if (!query) { setGlobalSearchResults([]); return; }
+        setGlobalSearchBusy(true);
+        try {
+            var lowered = query.toLowerCase(), seatMatch = query.match(/^(?:座號\s*)?(\d{1,2})(?:\s*號)?$/);
+            var seatNo = seatMatch ? parseInt(seatMatch[1],10) : null;
+            var classList = filterTombstonedClasses(classes || []), classMap = {};
+            classList.forEach(function(cls){ classMap[cls.id] = cls; });
+            var activeId = _sl.get('hw5ren:activeClass') || activeClassId;
+            if (!classMap[activeId]) classMap[activeId] = { id:activeId, year:schoolYear, school:schoolName, className:className };
+            var keys = await idbKeys(), results = [], seen = {}, mirrorValues = {}, primaryKeys = keys.slice();
+            // 搜尋同時掃描 localStorage 備援；即使 IDB 暫時不可用，仍能找到既有紀錄。
+            for (var lsIndex = 0; lsIndex < _sl.length(); lsIndex++) {
+                var mirrorKey = _sl.key(lsIndex), mirrorMatch;
+                if (!mirrorKey) continue;
+                mirrorMatch = mirrorKey.match(/^hw5ren:c:(.+):(\d{4}-\d{2}-\d{2})$/);
+                if (mirrorMatch) {
+                    var normalizedCounselKey = mirrorMatch[1] + ':counsel:' + mirrorMatch[2];
+                    if (primaryKeys.indexOf(normalizedCounselKey) < 0) primaryKeys.push(normalizedCounselKey);
+                    mirrorValues[normalizedCounselKey] = _sl.get(mirrorKey);
+                    continue;
+                }
+                mirrorMatch = mirrorKey.match(/^hw5ren:(.+):(\d{4}-\d{2}-\d{2})$/);
+                if (mirrorMatch) {
+                    var normalizedDayKey = mirrorMatch[1] + ':day:' + mirrorMatch[2];
+                    if (primaryKeys.indexOf(normalizedDayKey) < 0) primaryKeys.push(normalizedDayKey);
+                    mirrorValues[normalizedDayKey] = _sl.get(mirrorKey);
+                }
+            }
+            function add(result) {
+                var id = result.id || [result.type,result.classId,result.date,result.title,result.detail].join('|');
+                if (seen[id] || results.length >= 300) return;
+                seen[id] = true; results.push(Object.assign({}, result, { id:id }));
+            }
+            function classLabel(cid) {
+                var cls = classMap[cid] || {};
+                var normalized = normalizeAcademicYear(cls.year);
+                return [normalized.valid ? normalized.rocYear + '學年度' : cls.year, cls.className].filter(Boolean).join(' ');
+            }
+            var searchRows = await mapWithConcurrency(primaryKeys, 12, async function(primaryKey) {
+                var parsedKey = parsePrimaryRecordKey(primaryKey);
+                if (!parsedKey) return null;
+                var hasMirror = Object.prototype.hasOwnProperty.call(mirrorValues, primaryKey);
+                var raw = hasMirror ? mirrorValues[primaryKey] : await idbGet(primaryKey);
+                return raw ? { primaryKey:primaryKey, parsedKey:parsedKey, raw:raw } : null;
+            });
+            for (var i = 0; i < searchRows.length; i++) {
+                var searchRow = searchRows[i];
+                if (!searchRow) continue;
+                var parsedKey = searchRow.parsedKey;
+                if (!parsedKey) continue;
+                var cid = parsedKey.classKey || activeId, raw = searchRow.raw;
+                if (!raw) continue;
+                if (parsedKey.kind === 'day') {
+                    var day;
+                    try { day = deser(typeof raw === 'string' ? JSON.parse(raw) : raw); } catch(eDaySearch) { continue; }
+                    var dayGroups = cid === activeId ? (getGroupsForDate(parsedKey.date) || []) :
+                        safeJSON(safeGet('hw5ren:groups:' + cid) || '[]', []);
+                    (day.rows || []).forEach(function(row, rowIndex) {
+                        if (!row || !row.hwName) return;
+                        if (String(row.hwName).toLowerCase().indexOf(lowered) >= 0) {
+                            add({ type:'homework', classId:cid, classLabel:classLabel(cid), date:parsedKey.date, title:row.hwName, detail:'作業紀錄' });
+                        }
+                        if (seatNo !== null) {
+                            var group = dayGroups.find(function(item){ return Array.isArray(item.members) && item.members.map(Number).indexOf(seatNo) >= 0; });
+                            if (!group) return;
+                            var done = row.groupData && row.groupData[group.id] instanceof Set ? row.groupData[group.id] : new Set(row.groupData && row.groupData[group.id] || []);
+                            var exempt = day.exempt && day.exempt[row.hwName] instanceof Set ? day.exempt[row.hwName] : new Set(day.exempt && day.exempt[row.hwName] || []);
+                            var isAbsent = ['personal','sick','public'].some(function(type){ return day.attendance[type] && day.attendance[type].has(seatNo); });
+                            if (!done.has(seatNo) && !exempt.has(seatNo) && !isAbsent) {
+                                add({ type:'student', classId:cid, classLabel:classLabel(cid), date:parsedKey.date, title:'座號 ' + seatNo + ' 缺交', detail:row.hwName, id:'missing|' + cid + '|' + parsedKey.date + '|' + rowIndex + '|' + seatNo });
+                            }
+                        }
+                    });
+                    if (seatNo !== null) {
+                        [['personal','事假'],['sick','病假'],['public','公假'],['late','遲到']].forEach(function(pair) {
+                            if (day.attendance[pair[0]] && day.attendance[pair[0]].has(seatNo)) {
+                                add({ type:'student', classId:cid, classLabel:classLabel(cid), date:parsedKey.date, title:'座號 ' + seatNo + ' ' + pair[1], detail:'出勤紀錄' });
+                            }
+                        });
+                    }
+                } else {
+                    var counselRows;
+                    try { counselRows = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch(eCounselSearch) { counselRows = []; }
+                    (Array.isArray(counselRows) ? counselRows : []).forEach(function(record,index) {
+                        var recordText = JSON.stringify(record || '').toLowerCase();
+                        var seats = record.studentSeats || record.seats || [];
+                        if (recordText.indexOf(lowered) >= 0 || (seatNo !== null && seats.map(Number).indexOf(seatNo) >= 0)) {
+                            add({ type:'guidance', classId:cid, classLabel:classLabel(cid), date:parsedKey.date, title:'日輔導紀錄', detail:String(record.content || record.note || '').slice(0,160), id:'counsel|' + cid + '|' + parsedKey.date + '|' + index });
+                        }
+                    });
+                }
+            }
+            grRecords.forEach(function(record) {
+                var text = JSON.stringify(record || '').toLowerCase(), seats = record.studentSeats || [];
+                if (text.indexOf(lowered) >= 0 || (seatNo !== null && seats.map(Number).indexOf(seatNo) >= 0)) {
+                    add({ type:'guidance', classId:record.classKey || activeId, classLabel:classLabel(record.classKey || activeId), date:record.date || '', title:(record.category || '正式輔導') + '｜座號 ' + seats.join('、'), detail:String(record.content || '').slice(0,180), id:'gr|' + (record.id || record.timestamp) });
+                }
+            });
+            wpPlans.forEach(function(plan) {
+                Object.keys(plan.days || {}).forEach(function(date) {
+                    (plan.days[date] || []).forEach(function(item,index) {
+                        var text = (String(item.content || '') + ' ' + String(item.note || '')).toLowerCase();
+                        if (text.indexOf(lowered) >= 0) add({ type:'plan', classId:plan.classKey || activeId, classLabel:classLabel(plan.classKey || activeId), date:date, title:item.content || '週計畫', detail:item.note || '週作業計畫', id:'wp|' + (plan.id || '') + '|' + date + '|' + index });
+                    });
+                });
+            });
+            classList.forEach(function(cls) {
+                var store = normalizeSchoolEventStore(safeJSON(safeGet('hw5ren:schoolEvents:' + cls.id) || '{}', {}));
+                store.events.forEach(function(event) {
+                    var text = (event.title + ' ' + event.description + ' ' + event.location + ' ' + event.department).toLowerCase();
+                    if (text.indexOf(lowered) >= 0) add({ type:'calendar', classId:cls.id, classLabel:classLabel(cls.id), date:event.date, title:event.title, detail:[event.department,event.location].filter(Boolean).join('｜'), id:'event|' + cls.id + '|' + event.id });
+                });
+            });
+            results.sort(function(a,b){ return String(b.date || '').localeCompare(String(a.date || '')) || String(a.title).localeCompare(String(b.title)); });
+            setGlobalSearchResults(results);
+        } catch(e) {
+            setGlobalSearchResults([{ id:'error', type:'error', classId:'', classLabel:'', date:'', title:'搜尋失敗', detail:String(e && e.message || e) }]);
+        }
+        setGlobalSearchBusy(false);
+    }
+    useEffect(function(){ refreshDataLocator(true); }, [activeClassId, schoolYear, syncEpoch]);
     // 計算月份和學期抵免統計
     function calcExemptStats(entries) {
         // entries: { [dateStr]: { rows, attendance, exempt } }
@@ -7863,7 +8475,14 @@ function App() {
         // 載入整學年所有資料
         var _pfx = classPrefix();
         var allKeys = [];
-        try { allKeys = (await idbKeys()).filter(function(k) { return k.startsWith(_pfx+'day:' + curYear + '-'); }); }
+        try {
+            var range = academicYearRange(schoolYear), termClassKey = _pfx.replace(/:$/, '');
+            allKeys = (await idbKeys()).filter(function(k) {
+                var parsed = parsePrimaryRecordKey(k);
+                return parsed && parsed.kind === 'day' && parsed.classKey === termClassKey &&
+                    parsed.date >= range.start && parsed.date <= range.end;
+            });
+        }
         catch(e) {}
         var allEntries = {};
         await Promise.all(allKeys.map(async function(k) {
@@ -8335,6 +8954,43 @@ function App() {
     }
     function closeAttModal() { setAttModal(null); }
     const [lateModal, setLateModal] = useState(false);
+    // v18：iPhone 底層捲動鎖。開啟任何主要面板時固定原捲動位置，
+    // 關閉後精準回復，避免彈窗捲到底時帶動背後頁面。
+    useEffect(function() {
+        var shouldLock = !!(
+            showDatePicker || grDialog || grCenter || grFormalTarget || wpOpen ||
+            showThemeMenu || showGearMenu || showCalImport || dayEventModal ||
+            showHistory || showConflictCenter || slipNameModal || modal ||
+            attModal || periodModal || lateModal || showTodayDashboard || showGlobalSearch
+        );
+        if (!shouldLock) return;
+        var scrollY = window.scrollY || window.pageYOffset || 0;
+        var body = document.body, root = document.documentElement;
+        var previous = {
+            position:body.style.position, top:body.style.top, width:body.style.width,
+            overflow:body.style.overflow, rootOverscroll:root.style.overscrollBehavior
+        };
+        body.classList.add('v18-modal-open');
+        body.style.position = 'fixed';
+        body.style.top = '-' + scrollY + 'px';
+        body.style.width = '100%';
+        body.style.overflow = 'hidden';
+        root.style.overscrollBehavior = 'none';
+        return function() {
+            body.classList.remove('v18-modal-open');
+            body.style.position = previous.position;
+            body.style.top = previous.top;
+            body.style.width = previous.width;
+            body.style.overflow = previous.overflow;
+            root.style.overscrollBehavior = previous.rootOverscroll;
+            try { window.scrollTo(0, scrollY); } catch(e) {}
+        };
+    }, [
+        showDatePicker, grDialog, grCenter, grFormalTarget, wpOpen,
+        showThemeMenu, showGearMenu, showCalImport, dayEventModal,
+        showHistory, showConflictCenter, slipNameModal, modal,
+        attModal, periodModal, lateModal, showTodayDashboard, showGlobalSearch
+    ]);
     function toggleLate(num) {
         setDayLate(prev => {
             const next = new Set(prev);
@@ -9138,6 +9794,7 @@ function App() {
                 try {
                     var k = dayKeys[i];
                     var dateStr = k.slice(dayPfx.length);
+                    if (!dateInAcademicYear(dateStr, schoolYear)) continue;
                     var raw = await idbGet(k);
                     if (!raw) continue;
                     var parsed = (typeof raw === 'string') ? JSON.parse(raw) : raw;
@@ -9166,7 +9823,7 @@ function App() {
         } catch(exAll) { /* IDB 掃描失敗，回傳目前已聚合到的結果 */ }
         var counsel = [];
         try {
-            counsel = grForClass(grRecords).filter(function(r){ return (r.studentSeats||[]).includes(seat); })
+            counsel = grForClass(grRecords).filter(function(r){ return dateInAcademicYear(r.date, schoolYear) && (r.studentSeats||[]).includes(seat); })
                 .slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
         } catch(exC) {}
         return { hwMissByName: hwMissByName, hwMissByWeek: hwMissByWeek, attend: attend, counsel: counsel };
@@ -9321,7 +9978,7 @@ function App() {
     var localOnlyMode = !authed && (forceLocalMode || isOffline || typeof firebase === 'undefined' || !firebase.auth);
     if (!authed && !localOnlyMode) {
         var _LOGIN_BG = "./assets/login-background.jpg";
-        return (React.createElement("div", { className: "app", "data-theme": theme, style: { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: isNerv ? "#050200" : "linear-gradient(160deg,#0d1f3c,#1a3a6e)", padding: "40px 24px calc(60px + env(safe-area-inset-bottom, 16px)) 24px", position: "relative", overflow: "hidden", zIndex: 10, boxSizing: "border-box" } },
+        return (React.createElement("div", { className: "app", "data-theme": theme, style: { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: isNerv ? "#050200" : "linear-gradient(160deg,#0d1f3c,#1a3a6e)", padding: "40px 24px max(40px,var(--safe-bottom)) 24px", position: "relative", overflow: "hidden", zIndex: 10, boxSizing: "border-box" } },
             !isNerv && React.createElement("img", {
                 src: _LOGIN_BG, alt: "", draggable: false,
                 style: {
@@ -9426,8 +10083,10 @@ function App() {
                     }, isNerv ? "NERV" : "LIMU"),
                     React.createElement("span", { style:{ fontSize:11, fontWeight:600, color: isNerv ? "rgba(255,102,0,.75)" : "rgba(255,255,255,.5)", marginLeft:8, alignSelf:"center", letterSpacing:0, whiteSpace:"nowrap" } }, "v" + APP_VERSION),
                     React.createElement("div", { style:{ flex:1 } }),
+                    React.createElement("button", { className:"theme-btn header-quick-btn", onClick:openTodayWorkspace, title:"今日工作台", 'aria-label':"開啟今日工作台", style:{fontSize:14,width:32,height:32,padding:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,193,7,.24)"} }, isNerv ? "TOD" : "🏠"),
+                    React.createElement("button", { className:"theme-btn header-quick-btn", onClick:function(){setShowGlobalSearch(true);}, title:"全域搜尋", 'aria-label':"開啟全域搜尋", style:{fontSize:14,width:32,height:32,padding:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(126,87,194,.28)"} }, isNerv ? "SRC" : "🔎"),
                     // 輔導紀錄
-                    React.createElement("button", { className: "theme-btn", onClick: function() { setGrCenter(true); setGrTab('recent'); setGrFilter('7'); setGrSearch(''); }, title: "輔導紀錄中心", 'aria-label':"開啟輔導紀錄中心", style: { background: grRecords.length > 0 ? "rgba(156,39,176,.35)" : "rgba(255,255,255,.15)", fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, isNerv ? "▣" : "📋"),
+                    React.createElement("button", { className: "theme-btn header-quick-btn", onClick: function() { setGrCenter(true); setGrTab('recent'); setGrFilter('7'); setGrSearch(''); }, title: "輔導紀錄中心", 'aria-label':"開啟輔導紀錄中心", style: { background: grRecords.length > 0 ? "rgba(156,39,176,.35)" : "rgba(255,255,255,.15)", fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, isNerv ? "▣" : "📋"),
                     // 主題切換
                     React.createElement("button", { className: "theme-btn", onClick: handleThemeToggle, 'aria-label':"切換顯示主題", style: { background: theme === 'nerv' ? 'rgba(255,102,0,.2)' : theme === 'nebula' ? 'rgba(150,100,255,.2)' : 'rgba(255,255,255,.15)', fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, theme === 'nerv' ? '⬡' : theme === 'nebula' ? '🌌' : '☀️'),
                     // 齒輪選單
@@ -9471,7 +10130,7 @@ function App() {
                         )
                     )
                 ),
-                React.createElement("div", { style:{display:'flex',alignItems:'center',gap:8,fontSize:11,opacity:0.75,padding:'0 12px 2px'} },
+                React.createElement("div", { className:"account-row", style:{display:'flex',alignItems:'center',gap:8,fontSize:11,opacity:0.75,padding:'0 12px 2px'} },
                     userEmail && React.createElement("span", { style:{color:"rgba(255,255,255,.6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"} }, "👤 " + userEmail),
                     React.createElement("span", { style:{marginLeft:'auto',whiteSpace:'nowrap'} }, "📅 " + rocSemester())
                 )
@@ -9678,6 +10337,38 @@ function App() {
                 })
             )
         )) : (React.createElement(React.Fragment, null,
+            dataLocator.local && React.createElement("div", { style:{
+                margin:"8px 10px 6px", padding:"10px 12px", borderRadius:14,
+                background:isNerv?"rgba(0,160,255,.07)":"#eef6ff",
+                border:isNerv?"1px solid rgba(0,180,255,.28)":"1px solid #cfe2f3",
+                color:isNerv?"#8bd3ff":"#315f8d", fontSize:11, lineHeight:1.6
+            }, 'aria-label':"班級資料定位器" },
+                React.createElement("div", { style:{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"} },
+                    React.createElement("strong", { style:{fontSize:12,color:isNerv?"#8bd3ff":"#1e3a5f"} }, "📍 班級資料定位器"),
+                    React.createElement("span", null, normalizeAcademicYear(schoolYear).valid ? normalizeAcademicYear(schoolYear).label : schoolYear),
+                    React.createElement("button", { onClick:function(){refreshDataLocator(true);},disabled:dataLocator.loading,style:{marginLeft:"auto",border:"none",borderRadius:9,padding:"4px 8px",background:isNerv?"rgba(0,160,255,.12)":"#fff",color:"inherit",fontSize:10,fontWeight:800,cursor:"pointer"} }, dataLocator.loading ? "檢查中…" : "重新檢查")),
+                React.createElement("div", null,
+                    "本機 " + dataLocator.local.days + " 天",
+                    "｜雲端 " + (dataLocator.cloud ? dataLocator.cloud.days + " 天" : (firebaseUid && navigator.onLine ? "尚未完成" : "未連線")),
+                    "｜待同步 " + dataLocator.pending,
+                    "｜衝突 " + dataLocator.conflicts),
+                React.createElement("div", null,
+                    "日期範圍：" + (dataLocator.local.first ? dataLocator.local.first + "～" + dataLocator.local.last : "尚無資料"),
+                    dataLocator.local.outside ? "｜⚠ 學年度範圍外 " + dataLocator.local.outside + " 天（資料仍保留）" : "",
+                    lastSyncTime ? "｜最近同步 " + lastSyncTime : ""),
+                dataLocator.local.first && React.createElement("div", { style:{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"} },
+                    React.createElement("button", { onClick:function(){jumpToClassDate(activeClassId,dataLocator.local.first);},style:{border:"none",borderRadius:9,padding:"5px 9px",background:isNerv?"rgba(0,160,255,.14)":"#dceeff",color:"inherit",fontSize:10,fontWeight:800,cursor:"pointer"} }, "第一筆"),
+                    React.createElement("button", { onClick:function(){jumpToClassDate(activeClassId,dataLocator.local.last);},style:{border:"none",borderRadius:9,padding:"5px 9px",background:isNerv?"rgba(0,160,255,.14)":"#dceeff",color:"inherit",fontSize:10,fontWeight:800,cursor:"pointer"} }, "最後一筆"),
+                    React.createElement("button", { onClick:openTodayWorkspace,style:{border:"none",borderRadius:9,padding:"5px 9px",background:isNerv?"rgba(255,102,0,.15)":"#fff3e0",color:isNerv?"#ff9955":"#a75500",fontSize:10,fontWeight:800,cursor:"pointer"} }, "今日工作台"),
+                    React.createElement("button", { onClick:function(){setShowGlobalSearch(true);setTimeout(function(){var el=document.querySelector('[aria-label=\"全域搜尋輸入\"]');if(el)el.focus();},30);},style:{border:"none",borderRadius:9,padding:"5px 9px",background:isNerv?"rgba(170,100,255,.14)":"#f1e8ff",color:isNerv?"#c9a0ff":"#6a38a0",fontSize:10,fontWeight:800,cursor:"pointer"} }, "全域搜尋")
+                )
+            ),
+            dataLocator.local && dataLocator.local.days > 0 &&
+            Object.values(monthDays).every(function(entry){ return !(entry.rows || []).some(function(row){ return row && row.hwName; }); }) &&
+            React.createElement("div", { role:"status", style:{margin:"6px 10px 8px",padding:"11px 13px",borderRadius:13,background:isNerv?"rgba(255,160,0,.10)":"#fff8e1",border:isNerv?"1px solid rgba(255,160,0,.35)":"1px solid #ffe082",color:isNerv?"#ffbd66":"#8d6500",fontSize:12,lineHeight:1.55} },
+                React.createElement("strong", null, "這個月份沒有作業紀錄，但資料沒有消失。"),
+                React.createElement("span", null, " 此班另有 " + dataLocator.local.days + " 天資料，最近一筆在 " + dataLocator.local.last + "。"),
+                React.createElement("button", { onClick:function(){jumpToClassDate(activeClassId,dataLocator.local.last);},style:{display:"block",marginTop:7,border:"none",borderRadius:9,padding:"6px 10px",background:isNerv?"rgba(255,160,0,.18)":"#ffecb3",color:"inherit",fontSize:11,fontWeight:900,cursor:"pointer"} }, "立即查看最近資料")),
             React.createElement("div", { className: "calendar" },
                 React.createElement("div", { className: "wd-row" }, WEEKDAYS.map(w => React.createElement("div", { key: w, className: "wd" }, w))),
                 React.createElement("div", { className: "cal-grid" },
@@ -10324,7 +11015,7 @@ function App() {
                 position:"fixed", inset:0, zIndex:300,
                 background:"rgba(0,0,0,.55)",
                 display:"flex", alignItems:"flex-end", justifyContent:"center",
-                padding:"0 0 env(safe-area-inset-bottom,0)"
+                padding:"0"
             },
             onClick: function() {
                 setHwPickerWpDay('');
@@ -10336,7 +11027,7 @@ function App() {
                     background:"#1a1a2e", borderRadius:"16px 16px 0 0",
                     width:"100%", maxWidth:460,
                     maxHeight:"88vh", overflowY:"auto", WebkitOverflowScrolling:"touch",
-                    padding:"0 0 16px", boxShadow:"0 -8px 40px rgba(0,0,0,.6)"
+                    padding:"0 0 max(12px,var(--safe-bottom))", boxShadow:"0 -8px 40px rgba(0,0,0,.6)"
                 },
                 onClick: function(e){ e.stopPropagation(); }
             },
@@ -10986,7 +11677,7 @@ function App() {
             React.createElement("div", { onClick: function(e){e.stopPropagation();}, style:{
                 position:'absolute', bottom:0, left:0, right:0,
                 background: theme==='nerv'?'#120400':theme==='nebula'?'#0a0c20':'#fff',
-                borderRadius:'20px 20px 0 0', padding:'24px 20px calc(32px + env(safe-area-inset-bottom,0px))',
+                borderRadius:'20px 20px 0 0', padding:'24px 20px max(16px,var(--safe-bottom))',
                 boxShadow:'0 -8px 40px rgba(0,0,0,.3)',maxHeight:'92vh',overflowY:'auto',boxSizing:'border-box'
             } },
                 React.createElement("div", { style:{display:'flex',alignItems:'center',gap:8,marginBottom:6,position:'sticky',top:0,zIndex:2,background:theme==='nerv'?'#120400':theme==='nebula'?'#0a0c20':'#fff',paddingBottom:8} },
@@ -11129,13 +11820,121 @@ function App() {
                 )
             )
         )),
-        showGearMenu && (React.createElement("div", { onClick: function() { setShowGearMenu(false); }, style: { position: 'fixed', inset: 0, zIndex: 350, background: 'rgba(0,0,0,.6)' } },
+        showTodayDashboard && React.createElement("div", {
+            className:"v18-sheet-overlay",
+            role:"dialog", 'aria-modal':"true", 'aria-label':"今日工作台",
+            onClick:function(e){if(e.target===e.currentTarget&&!todayDashboardBusy)setShowTodayDashboard(false);},
+            style:{position:"fixed",inset:0,zIndex:9600,background:"rgba(0,0,0,.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}
+        }, React.createElement("div", { className:"v18-sheet-panel", style:{width:"100%",maxWidth:560,maxHeight:"88vh",overflowY:"auto",background:isNerv?"#100500":isNebula?"#111329":"#f7f9fc",color:isNerv?"#ff9955":isNebula?"#d7ccff":"#1e3a5f",borderRadius:20,padding:16,boxShadow:"0 20px 60px rgba(0,0,0,.45)"} },
+            React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8,marginBottom:12} },
+                React.createElement("div", { style:{fontSize:19,fontWeight:900,flex:1} }, isNerv?"◈ TODAY OPERATIONS":"🏠 今日工作台"),
+                React.createElement("button", { onClick:openTodayWorkspace,disabled:todayDashboardBusy,style:{border:"none",borderRadius:9,padding:"6px 9px",background:isNerv?"rgba(255,102,0,.13)":"#e6edf6",color:"inherit",fontSize:11,fontWeight:800,cursor:"pointer"} }, "重新整理"),
+                React.createElement("button", { onClick:function(){setShowTodayDashboard(false);},disabled:todayDashboardBusy,'aria-label':"關閉今日工作台",style:{border:"none",background:"transparent",color:"inherit",fontSize:24,cursor:"pointer"} }, "×")),
+            todayDashboardBusy && !todayDashboardData
+                ? React.createElement("div", { style:{padding:34,textAlign:"center",opacity:.65} }, "正在整理今天的資料…")
+                : todayDashboardData && React.createElement(React.Fragment, null,
+                    React.createElement("div", { style:{fontSize:12,opacity:.68,marginBottom:10} }, todayDashboardData.date + "｜" + (normalizeAcademicYear(schoolYear).valid ? normalizeAcademicYear(schoolYear).rocYear + " 學年度" : schoolYear) + "｜" + className),
+                    todayDashboardData.error && React.createElement("div", { role:"alert",style:{padding:10,borderRadius:10,background:"#ffebee",color:"#b71c1c",fontSize:12,marginBottom:10} }, todayDashboardData.error),
+                    React.createElement("div", { style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:7,marginBottom:12} },
+                        [
+                            ["事假",todayDashboardData.attendance.personal,"#fff3e0"],
+                            ["病假",todayDashboardData.attendance.sick,"#e3f2fd"],
+                            ["公假",todayDashboardData.attendance.public,"#e8f5e9"],
+                            ["遲到",todayDashboardData.attendance.late,"#f3e5f5"]
+                        ].map(function(item){return React.createElement("div", { key:item[0],style:{padding:"9px 5px",textAlign:"center",borderRadius:11,background:isNerv?"rgba(255,102,0,.07)":item[2]} },
+                            React.createElement("div", { style:{fontSize:18,fontWeight:900} }, item[1]),
+                            React.createElement("div", { style:{fontSize:10,opacity:.68} }, item[0])
+                        );})),
+                    React.createElement("div", { style:{padding:12,borderRadius:14,background:isNerv?"rgba(255,102,0,.06)":isNebula?"rgba(120,90,220,.12)":"#fff",border:isNerv?"1px solid rgba(255,102,0,.25)":"1px solid rgba(30,58,95,.10)",marginBottom:10} },
+                        React.createElement("div", { style:{fontSize:14,fontWeight:900,marginBottom:8} }, "📝 今日作業"),
+                        todayDashboardData.homework.length === 0
+                            ? React.createElement("div", { style:{fontSize:12,opacity:.6} }, "今天尚無作業紀錄")
+                            : todayDashboardData.homework.map(function(item){return React.createElement("div", { key:item.name,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid rgba(120,130,150,.12)"} },
+                                React.createElement("div", { style:{flex:1,minWidth:0} },
+                                    React.createElement("div", { style:{fontSize:13,fontWeight:800,overflowWrap:"anywhere"} }, item.name),
+                                    React.createElement("div", { style:{fontSize:10,opacity:.65,marginTop:2} }, item.missing.length ? "待確認座號：" + item.missing.join("、") : "目前全數完成")),
+                                React.createElement("span", { style:{fontSize:11,fontWeight:900,color:item.missing.length?"#e65100":"#2e7d32",whiteSpace:"nowrap"} }, item.completed + "/" + item.expected)
+                            );}),
+                        todayDashboardData.homework.some(function(item){return item.missing.length>0;}) && React.createElement("button", {
+                            onClick:completeTodayHomeworkBatch,disabled:todayDashboardBusy,
+                            style:{width:"100%",marginTop:9,padding:"9px",border:"none",borderRadius:10,background:"#ef6c00",color:"#fff",fontSize:12,fontWeight:900,cursor:"pointer",opacity:todayDashboardBusy ? 0.6 : 1}
+                        }, "✓ 批次標記今天所有待確認作業"),
+                        batchUndoAction && Date.now() <= batchUndoAction.expiresAt && React.createElement("button", {
+                            onClick:undoTodayHomeworkBatch,disabled:todayDashboardBusy,
+                            style:{width:"100%",marginTop:7,padding:"9px",border:"1px solid #ef6c00",borderRadius:10,background:"#fff8e1",color:"#e65100",fontSize:12,fontWeight:900,cursor:"pointer"}
+                        }, "↩ 復原剛才的批次操作（30 秒內）")),
+                    React.createElement("div", { style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:10} },
+                        React.createElement("div", { style:{padding:12,borderRadius:14,background:isNerv?"rgba(255,102,0,.06)":isNebula?"rgba(120,90,220,.12)":"#fff",border:"1px solid rgba(120,130,150,.12)"} },
+                            React.createElement("div", { style:{fontSize:13,fontWeight:900,marginBottom:7} }, "📅 今日行事"),
+                            todayDashboardData.events.length ? todayDashboardData.events.map(function(event,index){return React.createElement("div", { key:index,style:{fontSize:12,lineHeight:1.55,marginBottom:5} }, (event.important?"★ ":"") + event.title);}) : React.createElement("div", { style:{fontSize:11,opacity:.6} }, "今天沒有行事曆事件"),
+                            todayDashboardData.upcomingImportant.length>0 && React.createElement("div", { style:{marginTop:8,paddingTop:7,borderTop:"1px solid rgba(120,130,150,.15)",fontSize:10.5,lineHeight:1.6,opacity:.8} },
+                                React.createElement("strong", null, "未來 7 天重要："),
+                                todayDashboardData.upcomingImportant.map(function(event){return React.createElement("div", { key:event.id }, event.date + " " + event.title);})
+                            )),
+                        React.createElement("div", { style:{padding:12,borderRadius:14,background:isNerv?"rgba(255,102,0,.06)":isNebula?"rgba(120,90,220,.12)":"#fff",border:"1px solid rgba(120,130,150,.12)"} },
+                            React.createElement("div", { style:{fontSize:13,fontWeight:900,marginBottom:7} }, "📋 計畫與輔導"),
+                            React.createElement("div", { style:{fontSize:12,marginBottom:5} }, "週計畫：" + todayDashboardData.plans.length + " 項"),
+                            todayDashboardData.plans.slice(0,4).map(function(item,index){return React.createElement("div", { key:index,style:{fontSize:11,opacity:.75,lineHeight:1.5} }, "• " + item.content + (item.note?"（"+item.note+"）":""));}),
+                            React.createElement("div", { style:{fontSize:12,marginTop:7} }, "輔導紀錄：" + todayDashboardData.guidance.length + " 筆"))),
+                    React.createElement("button", { onClick:function(){openDay(todayDashboardData.date);setShowTodayDashboard(false);},style:{width:"100%",marginTop:12,padding:"11px",border:"none",borderRadius:11,background:isNerv?"#ff6600":"#1e3a5f",color:"#fff",fontSize:13,fontWeight:900,cursor:"pointer"} }, "開啟今天的完整紀錄")
+                )
+        )),
+        showGlobalSearch && React.createElement("div", {
+            className:"v18-sheet-overlay",
+            role:"dialog", 'aria-modal':"true", 'aria-label':"全域搜尋",
+            onClick:function(e){if(e.target===e.currentTarget&&!globalSearchBusy)setShowGlobalSearch(false);},
+            style:{position:"fixed",inset:0,zIndex:9650,background:"rgba(0,0,0,.74)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}
+        }, React.createElement("div", { className:"v18-sheet-panel", style:{width:"100%",maxWidth:620,maxHeight:"88vh",overflowY:"auto",background:isNerv?"#100500":isNebula?"#111329":"#f8fafc",color:isNerv?"#ff9955":isNebula?"#d7ccff":"#1e3a5f",borderRadius:20,padding:16,boxShadow:"0 20px 60px rgba(0,0,0,.48)"} },
+            React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8,marginBottom:11} },
+                React.createElement("div", { style:{fontSize:19,fontWeight:900,flex:1} }, isNerv?"◈ GLOBAL SEARCH":"🔎 全域搜尋"),
+                React.createElement("button", { onClick:function(){setShowGlobalSearch(false);},disabled:globalSearchBusy,'aria-label':"關閉全域搜尋",style:{border:"none",background:"transparent",color:"inherit",fontSize:24,cursor:"pointer"} }, "×")),
+            React.createElement("div", { style:{display:"flex",gap:7,marginBottom:9} },
+                React.createElement("input", {
+                    value:globalSearchQuery,onChange:function(e){setGlobalSearchQuery(e.target.value);},
+                    onKeyDown:function(e){if(e.key==="Enter")runGlobalSearch();},
+                    placeholder:"搜尋作業名稱、備註、行事、輔導；輸入「座號 5」可查學生",
+                    'aria-label':"全域搜尋輸入",
+                    style:{flex:1,minWidth:0,padding:"11px 12px",borderRadius:11,border:isNerv?"1px solid rgba(255,102,0,.4)":"1px solid #cad5e2",background:isNerv?"rgba(255,102,0,.05)":isNebula?"rgba(255,255,255,.07)":"#fff",color:"inherit",fontSize:13,outline:"none"}
+                }),
+                React.createElement("button", { onClick:function(){runGlobalSearch();},disabled:globalSearchBusy||!globalSearchQuery.trim(),style:{padding:"0 14px",border:"none",borderRadius:11,background:isNerv?"#ff6600":"#1e3a5f",color:"#fff",fontSize:12,fontWeight:900,cursor:"pointer",opacity:!globalSearchQuery.trim() ? 0.5 : 1} }, globalSearchBusy?"搜尋中…":"搜尋")),
+            React.createElement("div", { style:{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10} },
+                [["all","全部"],["homework","作業"],["student","學生"],["guidance","輔導"],["plan","週計畫"],["calendar","行事"]].map(function(pair){return React.createElement("button", {
+                    key:pair[0],onClick:function(){setGlobalSearchType(pair[0]);},
+                    style:{border:"none",borderRadius:12,padding:"5px 9px",background:globalSearchType===pair[0]?(isNerv?"#ff6600":"#1e3a5f"):(isNerv?"rgba(255,102,0,.08)":"#e9eef5"),color:globalSearchType===pair[0]?"#fff":"inherit",fontSize:10.5,fontWeight:800,cursor:"pointer"}
+                }, pair[1]);})),
+            React.createElement("div", { style:{fontSize:11,opacity:.62,marginBottom:8} },
+                globalSearchQuery ? "找到 " + globalSearchResults.filter(function(item){return globalSearchType==="all"||item.type===globalSearchType;}).length + " 筆；搜尋範圍包含目前裝置內的歷年班級資料。" : "輸入關鍵字後按 Enter 或「搜尋」。"),
+            globalSearchBusy
+                ? React.createElement("div", { style:{padding:30,textAlign:"center",opacity:.65} }, "正在掃描作業、學生、輔導、週計畫與行事曆…")
+                : React.createElement("div", null,
+                    globalSearchResults.filter(function(item){return globalSearchType==="all"||item.type===globalSearchType;}).map(function(item){
+                        var icons={homework:"📝",student:"👤",guidance:"💬",plan:"📅",calendar:"★",error:"⚠️"};
+                        return React.createElement("button", {
+                            key:item.id,disabled:!isValidIsoDate(item.date),
+                            onClick:function(){if(isValidIsoDate(item.date))jumpToClassDate(item.classId||activeClassId,item.date);},
+                            style:{display:"block",width:"100%",textAlign:"left",padding:"10px 11px",marginBottom:7,border:isNerv?"1px solid rgba(255,102,0,.18)":"1px solid #e0e7ef",borderRadius:12,background:isNerv?"rgba(255,102,0,.045)":isNebula?"rgba(255,255,255,.055)":"#fff",color:"inherit",cursor:isValidIsoDate(item.date)?"pointer":"default"}
+                        },
+                            React.createElement("div", { style:{display:"flex",gap:8,alignItems:"center"} },
+                                React.createElement("span", { style:{fontSize:17} }, icons[item.type]||"•"),
+                                React.createElement("div", { style:{flex:1,minWidth:0} },
+                                    React.createElement("div", { style:{fontSize:12.5,fontWeight:900,overflowWrap:"anywhere"} }, item.title),
+                                    React.createElement("div", { style:{fontSize:10.5,opacity:.62,marginTop:2} }, [item.date,item.classLabel].filter(Boolean).join("｜")),
+                                    item.detail && React.createElement("div", { style:{fontSize:11,opacity:.78,marginTop:3,lineHeight:1.45,overflowWrap:"anywhere"} }, item.detail)),
+                                isValidIsoDate(item.date) && React.createElement("span", { style:{fontSize:11,opacity:.5} }, "查看 ›"))
+                        );
+                    }),
+                    globalSearchQuery && globalSearchResults.filter(function(item){return globalSearchType==="all"||item.type===globalSearchType;}).length===0 &&
+                        React.createElement("div", { style:{padding:28,textAlign:"center",fontSize:12,opacity:.58} }, "沒有符合結果；可改用較短關鍵字或只輸入座號。")
+                )
+        )),
+        showGearMenu && (React.createElement("div", { role:'dialog', 'aria-modal':'true', 'aria-label':'功能選單', onClick: function() { setShowGearMenu(false); }, style: { position: 'fixed', inset: 0, zIndex: 350, background: 'rgba(0,0,0,.6)' } },
             React.createElement("div", { onClick: function(e){ e.stopPropagation(); }, style: {
                 position: 'absolute', bottom: 0, left: 0, right: 0,
                 background: theme === 'nerv' ? '#120400' : theme === 'nebula' ? '#0a0c20' : '#fff',
                 borderRadius: '20px 20px 0 0',
-                padding: '20px 0 calc(28px + env(safe-area-inset-bottom,0px))',
-                boxShadow: '0 -8px 40px rgba(0,0,0,.3)'
+                padding: '20px 0 max(12px,var(--safe-bottom))',
+                boxShadow: '0 -8px 40px rgba(0,0,0,.3)',
+                maxHeight:'88dvh', overflowY:'auto', overscrollBehavior:'contain', WebkitOverflowScrolling:'touch'
             } },
                 React.createElement("div", { style: {
                     textAlign: 'center', fontSize: 11, fontWeight: 700, letterSpacing: 3,
@@ -11144,6 +11943,8 @@ function App() {
                 } }, theme === 'nerv' ? '// VENUS OS MENU //' : 'Venus OS'),
                 React.createElement("div", { style: { height: 1, background: theme === 'nerv' ? 'rgba(255,102,0,.15)' : theme === 'nebula' ? 'rgba(150,100,255,.15)' : 'rgba(0,0,0,.06)', margin: '0 0 8px' } }),
                 [
+                    { icon: '🏠', label: '今日工作台', nervLabel: '\u25c8 TODAY DESK', action: function(){ openTodayWorkspace(); setShowGearMenu(false); } },
+                    { icon: '🔎', label: '全域搜尋', nervLabel: '\u25c7 GLOBAL SEARCH', action: function(){ setShowGlobalSearch(true); setShowGearMenu(false); } },
                     { icon: '🗂', label: '歷年档案', nervLabel: '\u25ab ARCHIVE', action: function(){ setView('archive'); setShowGearMenu(false); } },
                     { icon: '📅', label: '週作業計畫', nervLabel: '\u25a6 WEEK PLAN', action: function(){ wpOpenPlan(selDate || today()); setShowGearMenu(false); } },
                     { icon: syncConflicts.length > 0 ? '⚠️' : '🔄', label: '同步衝突' + (syncConflicts.length > 0 ? '（' + syncConflicts.length + '）' : ''), nervLabel: '\u25c8 SYNC CONFLICT' + (syncConflicts.length > 0 ? ' [' + syncConflicts.length + ']' : ''), action: function(){ setShowConflictCenter(true); setShowGearMenu(false); } },
@@ -11171,10 +11972,11 @@ function App() {
             )
         )),
         showConflictCenter && React.createElement("div", {
+            className:"v18-sheet-overlay",
             role:'dialog', 'aria-modal':'true', 'aria-label':'同步衝突處理中心',
             onClick:function(e){ if (e.target === e.currentTarget && !conflictBusyKey) setShowConflictCenter(false); },
             style:{position:'fixed',inset:0,zIndex:9700,background:'rgba(0,0,0,.72)',display:'flex',alignItems:'center',justifyContent:'center',padding:16}
-        }, React.createElement("div", { style:{width:'100%',maxWidth:560,maxHeight:'86vh',overflowY:'auto',background:theme==='nerv'?'#120400':'#fff',color:theme==='nerv'?'#ff8844':'#1e3a5f',borderRadius:18,padding:18,boxShadow:'0 20px 60px rgba(0,0,0,.4)'} },
+        }, React.createElement("div", { className:"v18-sheet-panel", style:{width:'100%',maxWidth:560,maxHeight:'86vh',overflowY:'auto',background:theme==='nerv'?'#120400':'#fff',color:theme==='nerv'?'#ff8844':'#1e3a5f',borderRadius:18,padding:18,boxShadow:'0 20px 60px rgba(0,0,0,.4)'} },
             React.createElement("div", { style:{display:'flex',alignItems:'center',gap:10,marginBottom:14} },
                 React.createElement("div", { style:{fontSize:18,fontWeight:900,flex:1} }, syncConflicts.length > 0 ? '⚠️ 同步衝突（' + syncConflicts.length + '）' : '✓ 沒有待處理的同步衝突'),
                 React.createElement("button", { type:'button', disabled:!!conflictBusyKey, onClick:function(){ setShowConflictCenter(false); }, 'aria-label':'關閉同步衝突中心', style:{border:'none',background:'transparent',fontSize:22,color:'inherit',cursor:'pointer'} }, '×')
@@ -12049,8 +12851,31 @@ function App() {
             )
         ),
         /* wpInputOpen 已廢棄，改由 hwpicker 處理 */
+        React.createElement("nav", { className:"mobile-dock", "aria-label":"手機快速導覽" },
+            React.createElement("button", {
+                type:"button", className:"mobile-dock-btn" + ((view === "month" || view === "day") ? " active" : ""),
+                onClick:function(){ setView("month"); }, "aria-label":"開啟月曆紀錄"
+            }, React.createElement("span", { className:"dock-icon", "aria-hidden":"true" }, "📅"), React.createElement("span", null, "月曆")),
+            React.createElement("button", {
+                type:"button", className:"mobile-dock-btn",
+                onClick:openTodayWorkspace, "aria-label":"開啟今日工作台"
+            }, React.createElement("span", { className:"dock-icon", "aria-hidden":"true" }, "🏠"), React.createElement("span", null, "今天")),
+            React.createElement("button", {
+                type:"button", className:"mobile-dock-btn",
+                onClick:function(){ setShowGlobalSearch(true); }, "aria-label":"開啟全域搜尋"
+            }, React.createElement("span", { className:"dock-icon", "aria-hidden":"true" }, "🔎"), React.createElement("span", null, "搜尋")),
+            React.createElement("button", {
+                type:"button", className:"mobile-dock-btn",
+                onClick:function(){ setGrCenter(true); setGrTab("recent"); setGrFilter("7"); setGrSearch(""); },
+                "aria-label":"開啟輔導紀錄中心"
+            }, React.createElement("span", { className:"dock-icon", "aria-hidden":"true" }, "📋"), React.createElement("span", null, "輔導")),
+            React.createElement("button", {
+                type:"button", className:"mobile-dock-btn" + ((view === "settings" || view === "archive") ? " active" : ""),
+                onClick:function(){ setShowGearMenu(true); }, "aria-label":"開啟更多功能"
+            }, React.createElement("span", { className:"dock-icon", "aria-hidden":"true" }, "•••"), React.createElement("span", null, "更多"))
+        ),
         view === "settings" && (React.createElement(SettingsView, { groups: groups, saveGroups: saveGroups, groupVersions: groupVersions, saveGroupVersions: saveGroupVersions, saveSettingsAtomic: saveSettingsAtomic, className: className, setClassName: (v) => { setClassName(v); _sl.set("hw5ren:className", v); saveSettingsToFirebase(v, undefined, undefined, undefined); }, schoolName: schoolName, setSchoolName: (v) => { setSchoolName(v); _sl.set("hw5ren:school", v); saveSettingsToFirebase(undefined, v, undefined, undefined); }, schoolYear: schoolYear, setSchoolYear: (v) => { setSchoolYear(v); _sl.set("hw5ren:year", v); saveSettingsToFirebase(undefined, undefined, v, undefined); }, semStart1: semStart1, setSemStart1: (v) => { setSemStart1(v); _sl.set("hw5ren:semStart1", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, v, undefined); }, semStart2: semStart2, setSemStart2: (v) => { setSemStart2(v); _sl.set("hw5ren:semStart2", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, undefined, v); }, semEnd1: semEnd1, semEnd2: semEnd2, schoolCalendar: schoolCalendar, classSize: classSize, setClassSize: (v) => { setClassSize(v); _sl.set("hw5ren:classSize", String(v)); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, v, undefined, undefined); }, officers: officers, saveOfficers: saveOfficers, officerPresets: officerPresets, setOfficerPresets: (v) => { setOfficerPresets(v); _sl.set("hw5ren:officerPresets", JSON.stringify(v)); markSettingsDirty('settings:main', '\u500B\u4EBA\u6E05\u55AE'); }, onClose: () => setView("month"), isNerv: isNerv, idbKeys: idbKeys, idbGet: idbGet, idbDelete: idbDelete, openDB: openDB, DB_STORE: DB_STORE, classes: classes, addClass: addClass, firebaseUid: firebaseUid, checkCurrentArchive:checkCurrentArchive, startSchoolYearTransition:startSchoolYearTransition, onOpenArchive:function(){setView("archive");} })),
-        view === "archive" && (React.createElement(ArchiveView, { idbKeys: idbKeys, idbGet: idbGet, idbSet: idbSet, groups: groups, schoolYear: schoolYear, className: className, schoolName: schoolName, classes: classes, yearRecords: yearRecords, isNerv: isNerv, firebaseUid: firebaseUid, onBackupDone: function(){ setBackupEpoch(Date.now()); }, onDeleteClass:permanentlyDeleteClass, deleteBusyClassId:deleteBusyClassId })))));
+        view === "archive" && (React.createElement(ArchiveView, { idbKeys: idbKeys, idbGet: idbGet, idbSet: idbSet, groups: groups, schoolYear: schoolYear, className: className, schoolName: schoolName, classes: classes, yearRecords: yearRecords, isNerv: isNerv, firebaseUid: firebaseUid, onBackupDone: function(){ setBackupEpoch(Date.now()); }, onDeleteClass:permanentlyDeleteClass, deleteBusyClassId:deleteBusyClassId, onJumpDate:jumpToClassDate })))));
 }
 
     debugStep('RENDER START');
@@ -12291,7 +13116,7 @@ setTimeout(function(){
       if (!bar) {
         bar = document.createElement('div');
         bar.id = 'limu-update-bar';
-        bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e3a5f;color:#fff;padding:12px 20px;font-size:13px;font-weight:700;z-index:99999;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:sans-serif';
+        bar.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1e3a5f;color:#fff;padding:12px 20px max(12px,var(--safe-bottom));font-size:13px;font-weight:700;z-index:99999;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:sans-serif';
         var updateText = document.createElement('span');
         updateText.id = 'limu-update-text';
         var updateButton = document.createElement('button');
@@ -12303,7 +13128,7 @@ setTimeout(function(){
       }
       var textNode = document.getElementById('limu-update-text');
       var buttonNode = document.getElementById('limu-update-button');
-      textNode.textContent = message || '📦 App v14 已下載完成';
+      textNode.textContent = message || '📦 App v18.1 已下載完成';
       buttonNode.textContent = mismatch ? '重新檢查' : '立即更新';
       buttonNode.setAttribute('aria-label', mismatch ? '重新檢查部署版本' : '啟用 App 新版本');
       buttonNode.onclick = function(){
@@ -12334,8 +13159,8 @@ setTimeout(function(){
     ]).then(function(results){
       var info = results[0], swText = results[1] || '';
       var myBuild = currentBuildId(), myCache = currentCacheName();
-      if (!info || (myBuild && (info.buildId !== myBuild || info.cacheName !== myCache || swText.indexOf(myBuild) < 0 || swText.indexOf("CACHE_PREFIX + 'v14'") < 0))) {
-        showUpdateBar(reg, '⚠️ 部署檔案版本不一致，請重新上傳完整 v14 部署包', true);
+      if (!info || (myBuild && (info.buildId !== myBuild || info.cacheName !== myCache || swText.indexOf(myBuild) < 0 || swText.indexOf("CACHE_PREFIX + 'v18-1'") < 0))) {
+        showUpdateBar(reg, '⚠️ 部署檔案版本不一致，請重新上傳完整 v18.1 部署包', true);
       }
     }).catch(function(){ /* 離線時不顯示混版警告 */ });
     try {
@@ -12346,7 +13171,7 @@ setTimeout(function(){
         clearTimeout(timer);
         var info = event.data || {};
         if (info.buildId && currentBuildId() && info.buildId !== currentBuildId() && !reg.waiting && !reg.installing) {
-          showUpdateBar(reg, '📦 App v14 更新檔已發現，準備下載', false);
+          showUpdateBar(reg, '📦 App v18.1 更新檔已發現，準備下載', false);
           reg.update();
         }
       };
