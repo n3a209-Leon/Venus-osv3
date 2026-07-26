@@ -2824,10 +2824,10 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const COUNSEL_PERIODS = ["早自習", "第1節", "第2節", "第3節", "第4節", "午休", "第5節", "第6節", "放學後"];
 const COUNSEL_TYPES = ["學習", "行為", "情緒", "人際", "家庭", "其他"];
 const COUNSEL_FOLLOWUP = ["需追蹤", "已處理", "轉介"];
-const APP_VERSION = "12.1.0";
-const APP_BUILD_DATE = "2026-07-25";
-const APP_BUILD_ID = "limu-teacher-v13-20260725";
-const APP_CACHE_NAME = "hw-tracker-v13";
+const APP_VERSION = "12.2.0";
+const APP_BUILD_DATE = "2026-07-27";
+const APP_BUILD_ID = "limu-teacher-v14-20260727";
+const APP_CACHE_NAME = "hw-tracker-v14";
 window.__LIMU_BUILD__ = Object.freeze({
     appVersion: APP_VERSION,
     buildDate: APP_BUILD_DATE,
@@ -3224,6 +3224,7 @@ window.__limuV11Test = Object.assign(window.__limuV11Test || {}, {
 function classPrefix() {
     try {
         var activeId = (typeof _sl !== 'undefined' ? _sl.get('hw5ren:activeClass') : null) || '';
+        if (activeId && typeof isClassTombstoned === 'function' && isClassTombstoned(activeId)) activeId = '';
         if (activeId) return activeId + ':';
         var y = (typeof _sl !== 'undefined' ? _sl.get('hw5ren:year') : null) || '';
         var c = (typeof _sl !== 'undefined' ? _sl.get('hw5ren:className') : null) || '';
@@ -3234,8 +3235,145 @@ function classPrefix() {
 // ── 輔導紀錄班級隔離：目前班級鑰匙（去尾冒號）──────────────────────────────
 function currentClassKey() { return classPrefix().replace(/:$/, ''); }
 
+// ── 班級永久刪除登記：阻止舊封存／舊雲端設定把已刪班級重新帶回 ────────────────
+const CLASS_TOMBSTONE_KEY = 'hw5ren:deletedClassesV14';
+function classAliasesFor(cls) {
+    var item = cls && typeof cls === 'object' ? cls : { id:String(cls || '') };
+    var out = [];
+    if (item.id) out.push(String(item.id));
+    if (item.classKey) out.push(String(item.classKey).replace(/:$/, ''));
+    if (item.year && item.className) out.push(String(item.year) + '_' + String(item.className));
+    (Array.isArray(item.aliases) ? item.aliases : []).forEach(function(alias) {
+        alias = String(alias || '').replace(/:$/, '');
+        if (alias) out.push(alias);
+    });
+    return Array.from(new Set(out.filter(Boolean)));
+}
+function normalizeClassTombstones(value) {
+    var list = Array.isArray(value) ? value : (value && Array.isArray(value.items) ? value.items : []);
+    var byId = {};
+    list.forEach(function(item) {
+        if (!item || typeof item !== 'object') return;
+        var aliases = classAliasesFor(item);
+        var classId = String(item.classId || item.id || aliases[0] || '');
+        if (!classId) return;
+        var normalized = {
+            classId:classId,
+            aliases:Array.from(new Set([classId].concat(aliases))),
+            year:String(item.year || ''),
+            school:String(item.school || ''),
+            className:String(item.className || ''),
+            deletedAt:Number(item.deletedAt || Date.now())
+        };
+        var old = byId[classId];
+        if (!old || normalized.deletedAt >= old.deletedAt) byId[classId] = normalized;
+        else old.aliases = Array.from(new Set(old.aliases.concat(normalized.aliases)));
+    });
+    return Object.keys(byId).map(function(key){ return byId[key]; }).sort(function(a,b){ return b.deletedAt - a.deletedAt; }).slice(0,200);
+}
+function mergeClassTombstones() {
+    var all = [];
+    for (var i = 0; i < arguments.length; i++) all = all.concat(normalizeClassTombstones(arguments[i]));
+    return normalizeClassTombstones(all);
+}
+function readClassTombstones() {
+    try { return normalizeClassTombstones(safeJSON(_sl.get(CLASS_TOMBSTONE_KEY) || '[]', [])); }
+    catch(e) { return []; }
+}
+function writeClassTombstones(items) {
+    var normalized = normalizeClassTombstones(items);
+    try { _sl.set(CLASS_TOMBSTONE_KEY, JSON.stringify(normalized)); } catch(e) {}
+    return normalized;
+}
+function isClassTombstoned(cls, registry) {
+    var aliases = classAliasesFor(cls), deleted = normalizeClassTombstones(registry === undefined ? readClassTombstones() : registry);
+    if (!aliases.length || !deleted.length) return false;
+    return deleted.some(function(item) {
+        return item.aliases.some(function(alias){ return aliases.indexOf(alias) >= 0; });
+    });
+}
+function filterTombstonedClasses(list, registry) {
+    var seen = {};
+    return (Array.isArray(list) ? list : []).filter(function(cls) {
+        if (!cls || !cls.id || isClassTombstoned(cls, registry) || seen[cls.id]) return false;
+        seen[cls.id] = true;
+        return true;
+    });
+}
+function mergeArchiveTargetClass(existingClasses, snapshot, overwrite, registry) {
+    var targetClassKey = String(snapshot && snapshot.classKey || '');
+    var safeExisting = filterTombstonedClasses(existingClasses, registry);
+    if (!targetClassKey || isClassTombstoned(targetClassKey, registry)) {
+        return { blocked:true, classes:safeExisting };
+    }
+    var settings = snapshot && snapshot.settings || {};
+    var incoming = Array.isArray(settings.classes) ? settings.classes : [];
+    var targetIncoming = incoming.find(function(cls){ return cls && cls.id === targetClassKey; });
+    var merged = safeExisting.slice();
+    if (targetIncoming && !isClassTombstoned(targetIncoming, registry)) {
+        var index = merged.findIndex(function(item){ return item && item.id === targetClassKey; });
+        if (index < 0) merged.push(targetIncoming);
+        else if (overwrite) merged[index] = targetIncoming;
+    }
+    if (!merged.some(function(cls){ return cls && cls.id === targetClassKey; })) {
+        merged.push({
+            id:targetClassKey,
+            year:String(snapshot && snapshot.year || ''),
+            school:snapshot && snapshot.schoolName || '',
+            className:snapshot && snapshot.className || targetClassKey,
+            createdAt:new Date().toLocaleDateString('zh-TW')
+        });
+    }
+    return { blocked:false, classes:filterTombstonedClasses(merged, registry) };
+}
+function archiveDataKeyBelongsToTarget(key, kind, snapshot) {
+    var aliases = classAliasesFor({
+        id:snapshot && snapshot.classKey,
+        classKey:snapshot && snapshot.classKey,
+        year:snapshot && snapshot.year,
+        className:snapshot && snapshot.className
+    });
+    var marker = ':' + String(kind || '') + ':';
+    return aliases.some(function(alias){ return String(key || '').indexOf(alias + marker) === 0; });
+}
+function addClassTombstone(cls) {
+    var aliases = classAliasesFor(cls);
+    if (!aliases.length) return readClassTombstones();
+    return writeClassTombstones(mergeClassTombstones(readClassTombstones(), [{
+        classId:String(cls && cls.id || aliases[0]),
+        aliases:aliases,
+        year:String(cls && cls.year || ''),
+        school:String(cls && cls.school || ''),
+        className:String(cls && cls.className || ''),
+        deletedAt:Date.now()
+    }]));
+}
+function academicLandingMonth(schoolYearValue) {
+    var y = parseInt(schoolYearValue, 10), nowKey = today();
+    if (!y) {
+        var now = new Date();
+        return { year:now.getFullYear(), month:now.getMonth(), date:nowKey };
+    }
+    var start = y + '-08-01', end = (y + 1) + '-07-31';
+    if (nowKey >= start && nowKey <= end) {
+        var parts = nowKey.split('-').map(Number);
+        return { year:parts[0], month:parts[1] - 1, date:nowKey };
+    }
+    return { year:y, month:7, date:start };
+}
+window.__limuV14Test = Object.assign(window.__limuV14Test || {}, {
+    classAliasesFor:classAliasesFor,
+    normalizeClassTombstones:normalizeClassTombstones,
+    mergeClassTombstones:mergeClassTombstones,
+    isClassTombstoned:isClassTombstoned,
+    filterTombstonedClasses:filterTombstonedClasses,
+    mergeArchiveTargetClass:mergeArchiveTargetClass,
+    archiveDataKeyBelongsToTarget:archiveDataKeyBelongsToTarget,
+    academicLandingMonth:academicLandingMonth
+});
+
 // ── 次要資料離線層：週計畫 / 正式輔導紀錄 ────────────────────────────────
-const APP_SCHEMA_VERSION = 5;
+const APP_SCHEMA_VERSION = 6;
 const SYNC_META_KEY = 'hw5ren:syncMetaV1';
 const SETTINGS_DIRTY_MAP_KEY = 'hw5ren:settingsDirtyV10';
 function readSettingsDirtyMap() {
@@ -3812,6 +3950,7 @@ function conflictRecordSummary(conflict, side) {
         if (conflict.settingsType === 'calendar') return label + '：' + Object.keys(value || {}).length + ' 筆行事曆事件';
         if (conflict.settingsType === 'schoolEvents') return label + '：' + ((value.events && value.events.length) || 0) + ' 筆公開事件、' + ((value.excluded && value.excluded.length) || 0) + ' 筆排除';
         if (conflict.settingsType === 'groups') return label + '：' + ((value.versions && value.versions.length) || 0) + ' 個組別版本';
+        if (conflict.settingsType === 'deletedClasses') return label + '：' + normalizeClassTombstones(value).length + ' 個永久刪除登記';
         if (conflict.settingsType === 'officers') {
             return label + '：' + (((value['1'] || []).length) + ((value['2'] || []).length)) + ' 個幹部職務';
         }
@@ -4135,7 +4274,7 @@ function daySummary(rows, groups) {
 // ══════════════════════════════════════════════════
 // ImportToArchive 已移除（改用 Firestore 自動讀取）
 
-function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, schoolName, classes, yearRecords, isNerv, firebaseUid, onBackupDone }) {
+function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, schoolName, classes, yearRecords, isNerv, firebaseUid, onBackupDone, onDeleteClass, deleteBusyClassId }) {
   var useState = React.useState, useEffect = React.useEffect, useRef = React.useRef;
   const [selYear, setSelYear] = useState(schoolYear || String(new Date().getFullYear()));
   const [selSchool, setSelSchool] = useState(schoolName || '');
@@ -4149,20 +4288,27 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
   // 歷年檔案清單：以實際班級清單為主（classes 有雲端備份），再併入舊版 yearRecords
   var archiveList = (function() {
     var out = [], seen = {};
-    function push(year, school, cls, savedAt, isCurrent) {
+    function push(year, school, cls, savedAt, isCurrent, classId) {
       var y = String(year || ''), c = String(cls || '');
       if (!y && !c) return;
       var k = y + '|' + String(school || '') + '|' + c;
-      if (seen[k]) { if (isCurrent) seen[k].isCurrent = true; return; }
-      var rec = { year:y, school:school || '', className:c, savedAt:savedAt || '', isCurrent:!!isCurrent };
+      if (seen[k]) {
+        if (isCurrent) seen[k].isCurrent = true;
+        if (classId) seen[k].classId = classId;
+        return;
+      }
+      var rec = { year:y, school:school || '', className:c, savedAt:savedAt || '', isCurrent:!!isCurrent, classId:classId || (y + '_' + c) };
       seen[k] = rec; out.push(rec);
     }
-    (classes || []).forEach(function(c) {
+    filterTombstonedClasses(classes || []).forEach(function(c) {
       var cur = String(c.year) === String(schoolYear) && c.className === className;
-      push(c.year, c.school, c.className, c.createdAt, cur);
+      push(c.year, c.school, c.className, c.createdAt, cur, c.id);
     });
-    (yearRecords || []).forEach(function(r) { push(r.year, r.school, r.className, r.savedAt, false); });
-    if (!out.length) push(schoolYear || new Date().getFullYear(), schoolName || '', className || '', '', true);
+    (yearRecords || []).forEach(function(r) {
+      var legacyRef = { id:r.id || r.classId || (String(r.year || '') + '_' + String(r.className || '')), year:r.year, school:r.school, className:r.className };
+      if (!isClassTombstoned(legacyRef)) push(r.year, r.school, r.className, r.savedAt, false, legacyRef.id);
+    });
+    if (!out.length && className) push(schoolYear || new Date().getFullYear(), schoolName || '', className || '', '', true, currentClassKey());
     out.sort(function(a, b) {
       if (a.year !== b.year) return String(b.year).localeCompare(String(a.year));
       return String(a.className).localeCompare(String(b.className));
@@ -4433,7 +4579,8 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
       officers: officersRaw ? safeJSON(officersRaw, {}) : {},
       settings: {
         activeClass: activeClassId,
-        classes: safeJSON(_sl.get('hw5ren:classes') || '[]', []),
+        classes: filterTombstonedClasses(safeJSON(_sl.get('hw5ren:classes') || '[]', [])),
+        deletedClasses: readClassTombstones(),
         groups: groups || [],
         className: className || '',
         schoolName: schoolName || '',
@@ -4599,11 +4746,16 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
   async function applyArchiveSnapshot(snapshot, overwrite) {
     if (!snapshot || !snapshot.days) throw new Error('備份格式異常，沒有每日資料');
     var targetClassKey = snapshot.classKey || currentClassKey();
+    if (isClassTombstoned(targetClassKey)) {
+      throw new Error('這個班級已被完整刪除，為避免舊備份讓它復活，已停止還原');
+    }
     var added = 0, skipped = 0, counselAdded = 0;
     var collections = [snapshot.days || {}, snapshot.dailyCounsel || {}];
     for (var ci = 0; ci < collections.length; ci++) {
       var collection = collections[ci];
       for (var key in collection) {
+        var dataKind = ci === 0 ? 'day' : 'counsel';
+        if (!archiveDataKeyBelongsToTarget(key, dataKind, snapshot)) { skipped++; continue; }
         var existing = await idbGet(key);
         if (!overwrite && existing) { skipped++; continue; }
         await idbSet(key, collection[key]);
@@ -4630,18 +4782,12 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
       if (value === undefined || value === null || value === '') return;
       if (overwrite || !_sl.get(key)) _sl.set(key, typeof value === 'string' ? value : JSON.stringify(value));
     }
-    var existingClasses = safeJSON(_sl.get('hw5ren:classes') || '[]', []);
-    var incomingClasses = Array.isArray(settings.classes) ? settings.classes : [];
-    var mergedClasses = overwrite ? incomingClasses.slice() : existingClasses.slice();
-    incomingClasses.forEach(function(cls) {
-      if (!cls || !cls.id) return;
-      var idx = mergedClasses.findIndex(function(item){ return item && item.id === cls.id; });
-      if (idx < 0) mergedClasses.push(cls);
-      else if (overwrite) mergedClasses[idx] = cls;
-    });
-    if (!mergedClasses.some(function(cls){ return cls && cls.id === targetClassKey; })) {
-      mergedClasses.push({ id:targetClassKey, year:String(snapshot.year || ''), school:snapshot.schoolName || '', className:snapshot.className || targetClassKey, createdAt:new Date().toLocaleDateString('zh-TW') });
-    }
+    var tombstones = readClassTombstones();
+    var existingClasses = filterTombstonedClasses(safeJSON(_sl.get('hw5ren:classes') || '[]', []), tombstones);
+    // 封存內可能含有當時的「全部班級清單」；還原時只處理這份封存的目標班級。
+    var classMerge = mergeArchiveTargetClass(existingClasses, snapshot, overwrite, tombstones);
+    if (classMerge.blocked) throw new Error('這個班級已被完整刪除，已停止還原');
+    var mergedClasses = classMerge.classes;
     _sl.set('hw5ren:activeClass', targetClassKey);
     _sl.set('hw5ren:classes', JSON.stringify(mergedClasses));
     setSetting('hw5ren:groups', settings.groups);
@@ -4826,22 +4972,35 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
             }
           },
             React.createElement("div", {
-              onClick: () => setSelYear(String(r.year)),
-              style:{ display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer' }
+              onClick: () => { setSelYear(String(r.year)); setSelSchool(r.school || ''); setSelClass(r.className || ''); },
+              style:{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, cursor:'pointer' }
             },
-              React.createElement("div", null,
-                React.createElement("div", { style:{fontWeight:700,fontSize:14,color:isNerv?'#ffa070':'#1e3a5f'} },
+              React.createElement("div", { style:{minWidth:0,flex:1,paddingRight:4} },
+                React.createElement("div", { style:{fontWeight:700,fontSize:14,color:isNerv?'#ffa070':'#1e3a5f',overflowWrap:'anywhere'} },
                   r.year + " 年（" + (parseInt(r.year, 10) - 1911) + " 學年度）　" + (r.school||'') + "　" + (r.className||'')),
                 React.createElement("div", { style:{fontSize:11,color:'#aaa',marginTop:2} },
                   r.isCurrent && archiveMeta
                     ? "備份：" + new Date(archiveMeta.archivedAt).toLocaleString() + "　儲存於：" + archiveMeta.source
                     : "備份：" + (r.driveFile||'-') + "　儲存於：" + (r.savedAt||'-'))
               ),
-              React.createElement("div", { style:{
-                fontSize:12, fontWeight:700, padding:'4px 12px', borderRadius:20,
-                background: r.isCurrent ? (isNerv?'#ff6600':'#1e3a5f') : 'transparent',
-                color: r.isCurrent ? '#fff' : '#aaa',
-              }}, r.isCurrent ? '✓ 目前' : '查看')
+              React.createElement("div", { style:{display:'flex',alignItems:'center',gap:6,flexShrink:0} },
+                React.createElement("div", { style:{
+                  fontSize:12, fontWeight:700, padding:'4px 10px', borderRadius:20,
+                  background: r.isCurrent ? (isNerv?'#ff6600':'#1e3a5f') : 'transparent',
+                  color: r.isCurrent ? '#fff' : '#aaa',
+                }}, r.isCurrent ? '✓ 目前' : '查看'),
+                React.createElement("button", {
+                  disabled:!!deleteBusyClassId,
+                  onClick:function(e) {
+                    e.stopPropagation();
+                    if (typeof onDeleteClass === 'function') onDeleteClass({
+                      id:r.classId, classKey:r.classId, year:r.year, school:r.school, className:r.className
+                    });
+                  },
+                  title:'完整刪除這個班級與其所有資料',
+                  'aria-label':'完整刪除 ' + (r.className || '班級'),
+                  style:{padding:'5px 8px',borderRadius:9,border:isNerv?'1px solid rgba(255,80,80,.45)':'1px solid #ef9a9a',background:isNerv?'rgba(255,40,40,.12)':'#fff1f1',color:isNerv?'#ff7777':'#c62828',fontSize:11,fontWeight:800,cursor:deleteBusyClassId?'wait':'pointer',opacity:deleteBusyClassId&&deleteBusyClassId!==r.classId?0.45:1}
+                }, deleteBusyClassId === r.classId ? '刪除中…' : '🗑 完整刪除'))
             ),
             r.isCurrent && React.createElement("div", { style:{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' } },
               React.createElement("button", {
@@ -5025,6 +5184,12 @@ function ArchiveView({ idbKeys, idbGet, idbSet, groups, schoolYear, className, s
 }
 
 function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, saveSettingsAtomic, className, setClassName, schoolName, setSchoolName, schoolYear, setSchoolYear, semStart1, setSemStart1, semStart2, setSemStart2, semEnd1, semEnd2, schoolCalendar, classSize, setClassSize, officers, saveOfficers, officerPresets, setOfficerPresets, onClose, isNerv, idbKeys, idbGet, idbDelete, openDB, DB_STORE, classes, addClass, firebaseUid, checkCurrentArchive, startSchoolYearTransition, onOpenArchive }) {
+    function splitFixedClassName(value) {
+        var raw = String(value || '').trim();
+        var match = raw.match(/^(.+?)\u5E74(.+?)\u73ED$/);
+        if (match) return { grade:match[1].trim(), core:match[2].trim() };
+        return { grade:'', core:raw.replace(/\u73ED$/, '').trim() };
+    }
     var [showAddClass, setShowAddClass] = React.useState(false);
     var [newYear, setNewYear] = React.useState(String(new Date().getFullYear()));
     var [newSchool, setNewSchool] = React.useState("");
@@ -5143,7 +5308,12 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
         var newDefault = nextVersions.slice().sort(function(a,b){ return b.effectiveDate.localeCompare(a.effectiveDate); })[0];
         switchVersion(newDefault.verId);
     }
-    const [draftClass, setDraftClass] = useState(className);
+    var initialClassParts = splitFixedClassName(className);
+    const [draftGrade, setDraftGrade] = useState(initialClassParts.grade);
+    const [draftClassCore, setDraftClassCore] = useState(initialClassParts.core);
+    const draftClass = (draftGrade.trim() && draftClassCore.trim())
+        ? (draftGrade.trim() + "\u5E74" + draftClassCore.trim() + "\u73ED")
+        : "";
     const [draftSchool, setDraftSchool] = useState(schoolName);
     const [draftYear, setDraftYear] = useState(schoolYear);
     const [draftClassSize, setDraftClassSize] = useState(classSize || 40);
@@ -5153,7 +5323,6 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
     const [draftSemEnd2, setDraftSemEnd2] = useState(semEnd2 || '');
     const [semDetectMsg, setSemDetectMsg] = useState('');
     const [saved, setSaved] = useState(false);
-    const [clearModal, setClearModal] = useState(false);
     const [settingsTab, setSettingsTab] = useState('class'); // 'class' | 'group' | 'officer'
     const [groupOpen, setGroupOpen] = useState({ 0: true }); // 第一組預設展開
     // 新增班級後跳到組別Tab（避免TDZ）
@@ -5203,21 +5372,6 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
         } catch(e) { setSlipHist({ byMonth: {}, allMembers: [] }); }
         setSlipHistLoading(false);
     }
-    const [clearDel, setClearDel] = useState("");
-    const [clearInput, setClearInput] = useState({
-        className: "",
-        yearFrom: parseInt(schoolYear) || new Date().getFullYear(),
-        yearTo: (parseInt(schoolYear) || new Date().getFullYear()) + 1
-    });
-    const [clearMsg, setClearMsg] = useState("");
-    // 每次開啟 clearModal 時同步最新的 draftClass
-    useEffect(() => {
-        if (clearModal) {
-            setClearInput(p => (Object.assign(Object.assign({}, p), { className: draftClass || className || "", yearFrom: parseInt(draftYear || schoolYear) || new Date().getFullYear(), yearTo: (parseInt(draftYear || schoolYear) || new Date().getFullYear()) + 1 })));
-            setClearDel("");
-            setClearMsg("");
-        }
-    }, [clearModal]);
     const nerv = isNerv;
     const allUsed = draft.reduce(function(acc,g){return acc.concat(g.members);}, []);
     function toggleSeat(idx, n) {
@@ -5265,6 +5419,10 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
         setGroupOpen({ 0: true });
     }
     async function doSave() {
+        if (!draftGrade.trim() || !draftClassCore.trim()) {
+            alert("請完整填寫年級與班別，班名會固定儲存為「年級＋年＋班別＋班」");
+            return;
+        }
         const valid = draft.every(g => g.members.length > 0);
         if (!valid) {
             alert("每組至少需要1個座號");
@@ -5284,62 +5442,6 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
         if (!ok) { alert("設定無法儲存，請確認瀏覽器儲存空間"); return; }
         setSaved(true);
         setTimeout(() => { setSaved(false); }, 1200);
-    }
-    async function doClear() {
-        if (clearDel !== "DEL") {
-            setClearMsg("請輸入正確的 DEL");
-            return;
-        }
-        var from = parseInt(clearInput.yearFrom, 10), to = parseInt(clearInput.yearTo, 10);
-        var targetName = (clearInput.className || '').trim();
-        if (!targetName || !from || !to || from > to) {
-            setClearMsg("請確認班級名稱與學年度範圍");
-            return;
-        }
-        try {
-            var prefixes = [];
-            (classes || []).forEach(function(c) {
-                var cy = parseInt(c.year, 10);
-                if (c.className === targetName && cy >= from && cy <= to) {
-                    prefixes.push(c.id + ':');
-                    prefixes.push(c.year + '_' + c.className + ':');
-                }
-            });
-            if (!prefixes.length && targetName === className && parseInt(schoolYear,10) >= from && parseInt(schoolYear,10) <= to) prefixes.push(classPrefix());
-            prefixes = Array.from(new Set(prefixes.filter(Boolean)));
-            if (!prefixes.length) { setClearMsg("找不到符合範圍的班級"); return; }
-            function matches(k) {
-                if (!prefixes.some(function(p){ return k.indexOf(p + 'day:') === 0 || k.indexOf(p + 'counsel:') === 0; })) return false;
-                var m = k.match(/(?:day|counsel):(\d{4})-\d{2}-\d{2}$/);
-                var y = m ? parseInt(m[1], 10) : 0;
-                return y >= from && y <= to;
-            }
-            var localKeys = (await idbKeys()).filter(matches);
-            var cloudKeys = [];
-            if (firebaseUid) {
-                for (var pi = 0; pi < prefixes.length; pi++) {
-                    var found = await window.fsGetAll(firebaseUid, prefixes[pi]);
-                    Object.keys(found || {}).forEach(function(k){ if (matches(k)) cloudKeys.push(k); });
-                }
-                cloudKeys = Array.from(new Set(cloudKeys));
-            }
-            if (!window.confirm('最後確認：將永久刪除「' + targetName + '」' + from + '–' + to + ' 年的作業、出勤、回條與每日輔導資料。\n\n本機 ' + localKeys.length + ' 筆' + (firebaseUid ? '、雲端 ' + cloudKeys.length + ' 筆' : '') + '。確定繼續？')) return;
-            for (var ci = 0; ci < cloudKeys.length; ci++) await window.fsDelete(firebaseUid, cloudKeys[ci]);
-            for (var li = 0; li < localKeys.length; li++) {
-                var key = localKeys[li];
-                await idbDelete(key);
-                var dm = key.match(/^(.*:)day:(\d{4}-\d{2}-\d{2})$/);
-                var cm = key.match(/^(.*:)counsel:(\d{4}-\d{2}-\d{2})$/);
-                if (dm) _sl.remove('hw5ren:' + dm[1] + dm[2]);
-                if (cm) _sl.remove('hw5ren:c:' + cm[1] + cm[2]);
-            }
-            clearDirtyKeys(localKeys.concat(cloudKeys));
-            setClearMsg("✅ 已清除本機 " + localKeys.length + " 筆" + (firebaseUid ? "、雲端 " + cloudKeys.length + " 筆" : ""));
-            setTimeout(() => { setClearModal(false); setClearDel(""); setClearMsg(""); onClose(); }, 1500);
-        }
-        catch (e) {
-            setClearMsg("❌ 清除失敗：" + String(e));
-        }
     }
     // Styles
     const panel = nerv
@@ -5382,7 +5484,11 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
                 React.createElement("label", { style: lbl }, nerv ? "// SCHOOL //" : "\u5B78\u6821\u540D\u7A31"),
                 React.createElement("input", { style: Object.assign(Object.assign({}, inp), { marginBottom: 12 }), value: draftSchool, onChange: e => setDraftSchool(e.target.value), placeholder: "\u4F8B\uFF1A\u5927\u7532\u570B\u5C0F", maxLength: 20 }),
                 React.createElement("label", { style: lbl }, nerv ? "// CLASS NAME //" : "\u73ED\u7D1A\u540D\u7A31"),
-                React.createElement("input", { style: Object.assign(Object.assign({}, inp), { marginBottom: 12 }), value: draftClass, onChange: e => setDraftClass(e.target.value), placeholder: "\u4F8B\uFF1A\u4E94\u5E74\u58EC\u73ED\u3001\u516D\u5E742\u73ED", maxLength: 20 }),
+                React.createElement("div", { style:{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto minmax(0,1fr) auto",gap:7,alignItems:"center",marginBottom:12} },
+                    React.createElement("input", { style:inp, value:draftGrade, onChange:function(e){setDraftGrade(e.target.value.replace(/[\u5E74\u73ED]/g,'').slice(0,8));}, placeholder:"六", maxLength:8, 'aria-label':"\u5E74\u7D1A" }),
+                    React.createElement("span", { style:{fontWeight:900,color:nerv?"#ff8844":"#1e3a5f"} }, "\u5E74"),
+                    React.createElement("input", { style:inp, value:draftClassCore, onChange:function(e){setDraftClassCore(e.target.value.replace(/[\u5E74\u73ED]/g,'').slice(0,8));}, placeholder:"壬", maxLength:8, 'aria-label':"\u73ED\u5225" }),
+                    React.createElement("span", { style:{fontWeight:900,color:nerv?"#ff8844":"#1e3a5f"} }, "\u73ED")),
                 React.createElement("div", { style: { display:"flex", gap:12, marginBottom:12 } },
                     React.createElement("div", { style:{ flex:1 } },
                         React.createElement("label", { style: lbl }, nerv ? "// YEAR //" : "\u5B78\u5E74\uFF08\u897F\u5143\u5E74\uFF09"),
@@ -5600,10 +5706,6 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
             }),
             draft.length < 10 && React.createElement("button", { onClick:function(){ addGroup(); setGroupOpen(function(p){ var n=Object.assign({},p); n[draft.length]=true; return n; }); }, style:{ display:"block", width:"100%", padding:12, marginBottom:8, background:nerv?"rgba(255,102,0,.06)":"#eef4ff", border:nerv?"1px dashed rgba(255,102,0,.4)":"2px dashed #c3d8ff", color:nerv?"#ff6600":"#1e3a5f", borderRadius:nerv?4:12, cursor:"pointer", fontSize:14, fontWeight:700 } }, nerv?"+ ADD UNIT":"+ \u65B0\u589E\u7D44\u5225"),
             React.createElement("button", { onClick: resetGroups, style:{ display:"block", width:"100%", padding:10, marginBottom:16, background:"rgba(229,57,53,.08)", border:"1.5px dashed #e53935", color:"#e53935", borderRadius:nerv?4:12, cursor:"pointer", fontSize:13, fontWeight:700 } }, "\u267B\uFE0F \u5168\u90E8\u6E05\u9664\u7D44\u5225\uFF08\u91CD\u65B0\u8A2D\u5B9A\uFF09"),
-            React.createElement("div", { style: Object.assign(Object.assign({}, panel), { border: nerv ? "1px solid rgba(255,0,0,.5)" : "2px solid #ffcdd2", background: nerv ? "rgba(255,0,0,.05)" : "#fff9f9", marginBottom: 16 }) },
-                React.createElement("div", { style: { fontSize: 14, fontWeight: 800, color: "#e53935", marginBottom: 8 } }, nerv ? "\u26A0 DANGER ZONE // \u6E05\u9664\u6B77\u53F2\u8CC7\u6599" : "\u26A0\uFE0F \u6E05\u9664\u6B77\u53F2\u7D00\u9304"),
-                React.createElement("p", { style: { fontSize: 12, color: nerv ? "rgba(255,100,100,.6)" : "#aab8cc", marginBottom: 14, lineHeight: 1.6 } }, nerv ? "// \u6E05\u9664\u5F8C\u7121\u6CD5\u5FA9\u539F // \u9069\u5408\u5B78\u5E74\u7D50\u675F\u5F8C\u4F7F\u7528" : "\u6E05\u9664\u5F8C\u7121\u6CD5\u5FA9\u539F\uFF0C\u8ACB\u78BA\u8A8D\u5DF2\u5099\u4EFD\u3002\u9069\u5408\u5B78\u5E74\u7D50\u675F\u5F8C\u4F7F\u7528\u3002"),
-                React.createElement("button", { onClick: () => setClearModal(true), style: { padding: "10px 20px", background: "#e53935", border: "none", color: "#fff", borderRadius: nerv ? 2 : 10, cursor: "pointer", fontSize: 13, fontWeight: 700 } }, nerv ? "\u26A0 PURGE DATA" : "\u6E05\u9664\u6240\u6709\u7D00\u9304")),
             React.createElement("button", { onClick: doSave, style: { display: "block", width: "100%", padding: 16, background: saved ? "#4caf80" : nerv ? "rgba(255,102,0,.15)" : "#1e3a5f", border: nerv ? "1px solid #ff6600" : "none", color: nerv ? "#ff6600" : "#fff", borderRadius: nerv ? 4 : 16, cursor: "pointer", fontSize: 16, fontWeight: 900, boxShadow: nerv ? "0 0 12px rgba(255,102,0,.3)" : "0 4px 12px rgba(30,58,95,.25)", letterSpacing: nerv ? 4 : 1, fontFamily: nerv ? "Share Tech Mono,monospace" : "inherit", transition: "background .3s", marginBottom: 32 } }, saved ? (nerv ? "\u2705 CONFIG SAVED" : "\u2705 \u5DF2\u5132\u5B58\uFF01") : (nerv ? "// SAVE CONFIG //" : "\u5132\u5B58\u8A2D\u5B9A"))),
         settingsTab === 'officer' && React.createElement(React.Fragment, null,
             React.createElement("div", { style:{ display:"flex", gap:8, marginBottom:16 } },
@@ -5733,36 +5835,7 @@ function SettingsView({ groups, saveGroups, groupVersions, saveGroupVersions, sa
             React.createElement("div", { style:{display:"flex",gap:10,marginTop:16} },
                 React.createElement("button", { type:"button", disabled:transitionBusy, onClick:function(){setShowYearTransition(false);}, style:{flex:1,padding:11,border:"1px solid #d7e0ea",borderRadius:10,background:"#fff",color:"#607080",fontWeight:800,cursor:"pointer"} }, "取消"),
                 React.createElement("button", { type:"button", disabled:transitionBusy||transitionChecking||!transitionArchiveReady||!!transitionDuplicate||!String(transitionForm.className||"").trim()||!transitionForm.semStart1, onClick:submitYearTransition, style:{flex:2,padding:11,border:"none",borderRadius:10,background:(transitionArchiveReady&&!transitionBusy&&!transitionDuplicate)?"#2e7d45":"#aab5ae",color:"#fff",fontWeight:900,cursor:(transitionArchiveReady&&!transitionDuplicate)?"pointer":"not-allowed"} }, transitionBusy?"建立中…":"建立新學年度班級"))
-        )),
-        clearModal && (React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 } },
-            React.createElement("div", { style: { background: nerv ? "#0a0100" : "#fff", border: nerv ? "2px solid #ff0000" : "none", borderRadius: nerv ? 4 : 20, padding: 28, width: 320, maxWidth: "92vw", boxShadow: "0 20px 60px rgba(0,0,0,.4)" } },
-                React.createElement("div", { style: { fontSize: 16, fontWeight: 900, color: "#e53935", marginBottom: 8 } }, nerv ? "⚠ CONFIRM DATA PURGE" : "⚠️ 確認清除"),
-                React.createElement("div", { style: { marginBottom: 16 } },
-                    React.createElement("label", { style: Object.assign(Object.assign({}, lbl), { marginBottom: 4 }) }, "\u73ED\u7D1A\u540D\u7A31"),
-                    React.createElement("input", { style: Object.assign(Object.assign({}, inp), { marginBottom: 8 }), value: clearInput.className, onChange: e => setClearInput(p => (Object.assign(Object.assign({}, p), { className: e.target.value }))), placeholder: "\u4F8B\uFF1A\u4E94\u5E74\u58EC\u73ED" }),
-                    React.createElement("div", { style: { display: "flex", gap: 8 } },
-                        React.createElement("div", { style: { flex: 1 } },
-                            React.createElement("label", { style: Object.assign(Object.assign({}, lbl), { marginBottom: 4 }) }, "\u8D77\u59CB\u5B78\u5E74"),
-                            React.createElement("input", { style: inp, type: "text", inputMode: "numeric", maxLength: 4, value: clearInput.yearFrom, onFocus: selAll, onChange: e => { var v = e.target.value.replace(/[^0-9]/g, ''); setClearInput(p => (Object.assign(Object.assign({}, p), { yearFrom: v }))); } })),
-                        React.createElement("div", { style: { display: "flex", alignItems: "flex-end", paddingBottom: 10, color: nerv ? "#ff6600" : "#aaa" } }, "\u2014"),
-                        React.createElement("div", { style: { flex: 1 } },
-                            React.createElement("label", { style: Object.assign(Object.assign({}, lbl), { marginBottom: 4 }) }, "\u7D50\u675F\u5B78\u5E74"),
-                            React.createElement("input", { style: inp, type: "text", inputMode: "numeric", maxLength: 4, value: clearInput.yearTo, onFocus: selAll, onChange: e => { var v = e.target.value.replace(/[^0-9]/g, ''); setClearInput(p => (Object.assign(Object.assign({}, p), { yearTo: v }))); } })))),
-                React.createElement("div", { style: { background: nerv ? "rgba(255,0,0,.1)" : "#fff5f5", border: nerv ? "1px solid rgba(255,0,0,.3)" : "1px solid #ffcdd2", borderRadius: 8, padding: "10px 14px", marginBottom: 16 } },
-                    React.createElement("p", { style: { fontSize: 13, color: nerv ? "#ff4444" : "#c62828", fontWeight: 700, marginBottom: 4 } }, "\u5373\u5C07\u6E05\u9664\uFF1A"),
-                    React.createElement("p", { style: { fontSize: 14, color: nerv ? "#ff6666" : "#e53935", fontWeight: 900 } },
-                        clearInput.className,
-                        " ",
-                        clearInput.yearFrom,
-                        "\uFF0D",
-                        clearInput.yearTo,
-                        " \u5B78\u5E74\u5EA6")),
-                React.createElement("label", { style: Object.assign(Object.assign({}, lbl), { color: "#e53935" }) }, nerv ? "// 輸入 DEL 確認 //" : "輸入 DEL 確認刪除"),
-                React.createElement("input", { style: Object.assign(Object.assign({}, inp), { marginBottom: 8, border: "2px solid #e53935", letterSpacing: 4, fontWeight: 900, fontSize: 16, textAlign: "center" }), value: clearDel, onChange: e => setClearDel(e.target.value.toUpperCase()), placeholder: "DEL", maxLength: 3 }),
-                clearMsg && React.createElement("p", { style: { fontSize: 12, color: clearMsg.startsWith("✅") ? "#4caf80" : "#e53935", marginBottom: 8, textAlign: "center" } }, clearMsg),
-                React.createElement("div", { style: { display: "flex", gap: 8 } },
-                    React.createElement("button", { onClick: () => { setClearModal(false); setClearDel(""); setClearMsg(""); }, style: { flex: 1, padding: "10px 0", border: "2px solid #dde5ee", borderRadius: nerv ? 2 : 12, background: "#fff", color: "#8a9db5", fontSize: 14, fontWeight: 700, cursor: "pointer" } }, "\u53D6\u6D88"),
-                    React.createElement("button", { onClick: doClear, disabled: clearDel !== "DEL", style: { flex: 1, padding: "10px 0", border: "none", borderRadius: nerv ? 2 : 12, background: clearDel === "DEL" ? "#e53935" : "#aaa", color: "#fff", fontSize: 14, fontWeight: 700, cursor: clearDel === "DEL" ? "pointer" : "not-allowed" } }, nerv ? "PURGE" : "確認清除")))))));
+        ))));
 }
 function App() {
     var _a, _b, _c, _d, _e;
@@ -5962,7 +6035,7 @@ function App() {
             if (raw) {
                 const stored = safeJSON(raw, null);
                 if (Array.isArray(stored) && stored.length > 0) {
-                    const valid = stored.filter(c => c && c.year && c.className && typeof c.year === 'string');
+                    const valid = filterTombstonedClasses(stored.filter(c => c && c.year && c.className && typeof c.year === 'string'));
                     if (valid.length > 0) return valid;
                 }
                 // 損壞資料：清除並重建
@@ -5974,6 +6047,7 @@ function App() {
             const sy = safeGet("hw5ren:year") || String(new Date().getFullYear());
             if (cn || sn) {
                 const cls = [{ id: sy+"_"+cn, year: sy, school: sn, className: cn, createdAt: new Date().toLocaleDateString("zh-TW") }];
+                if (isClassTombstoned(cls[0])) return [];
                 try { _sl.set("hw5ren:classes", JSON.stringify(cls)); } catch(ex) {}
                 return cls;
             }
@@ -5983,8 +6057,13 @@ function App() {
             return [];
         }
     });
-    const [activeClassId, setActiveClassId] = useState(() => safeGet("hw5ren:activeClass") || "");
+    const [activeClassId, setActiveClassId] = useState(() => {
+        var id = safeGet("hw5ren:activeClass") || "";
+        if (id && isClassTombstoned(id)) { try { _sl.remove('hw5ren:activeClass'); } catch(e) {} return ""; }
+        return id;
+    });
     const [showClassDropdown, setShowClassDropdown] = useState(false);
+    const [deleteBusyClassId, setDeleteBusyClassId] = useState('');
 
     function buildSettingsMainValue(cn, sn, sy, cls, grp, cs, ss1, ss2, cal) {
         var localActiveClass = _sl.get('hw5ren:activeClass') || activeClassId;
@@ -5992,7 +6071,8 @@ function App() {
             className:  cn  !== undefined ? cn  : (_sl.get('hw5ren:className') || className),
             schoolName: sn  !== undefined ? sn  : (_sl.get('hw5ren:school') || schoolName),
             schoolYear: sy  !== undefined ? sy  : (_sl.get('hw5ren:year') || schoolYear),
-            classes:    cls !== undefined ? cls : safeJSON(_sl.get('hw5ren:classes') || '[]', classes),
+            classes:    filterTombstonedClasses(cls !== undefined ? cls : safeJSON(_sl.get('hw5ren:classes') || '[]', classes)),
+            deletedClasses: readClassTombstones(),
             groups:     grp !== undefined ? grp : safeJSON(_sl.get('hw5ren:groups') || '[]', groups),
             classSize:  cs  !== undefined ? cs  : (parseInt(_sl.get('hw5ren:classSize') || '',10) || classSize),
             semStart1:  ss1 !== undefined ? ss1 : (_sl.get('hw5ren:semStart1') || semStart1),
@@ -6049,10 +6129,14 @@ function App() {
     function applySettingsDocument(key, value) {
         if (!key || !value || typeof value !== 'object') return;
         if (key === 'settings:main') {
+            var mergedTombstones = writeClassTombstones(mergeClassTombstones(readClassTombstones(), value.deletedClasses || []));
             if (value.className !== undefined) { setClassName(value.className || ''); _sl.set('hw5ren:className', value.className || ''); }
             if (value.schoolName !== undefined) { setSchoolName(value.schoolName || ''); _sl.set('hw5ren:school', value.schoolName || ''); }
             if (value.schoolYear !== undefined) { setSchoolYear(String(value.schoolYear || '')); _sl.set('hw5ren:year', String(value.schoolYear || '')); }
-            if (Array.isArray(value.classes)) { setClasses(value.classes); _sl.set('hw5ren:classes', JSON.stringify(value.classes)); }
+            if (Array.isArray(value.classes)) {
+                var safeClasses = filterTombstonedClasses(value.classes, mergedTombstones);
+                setClasses(safeClasses); _sl.set('hw5ren:classes', JSON.stringify(safeClasses));
+            }
             if (Array.isArray(value.groups)) {
                 setGroups(value.groups); _sl.set('hw5ren:groups', JSON.stringify(value.groups));
                 var mainCid = _sl.get('hw5ren:activeClass') || activeClassId;
@@ -6063,6 +6147,21 @@ function App() {
             if (value.semStart2 !== undefined) { setSemStart2(value.semStart2 || ''); _sl.set('hw5ren:semStart2', value.semStart2 || ''); }
             if (value.semEnd1 !== undefined) { setSemEnd1(value.semEnd1 || ''); _sl.set('hw5ren:semEnd1', value.semEnd1 || ''); }
             if (value.semEnd2 !== undefined) { setSemEnd2(value.semEnd2 || ''); _sl.set('hw5ren:semEnd2', value.semEnd2 || ''); }
+            return;
+        }
+        if (key === 'settings:deletedClasses') {
+            var deletedRegistry = writeClassTombstones(mergeClassTombstones(readClassTombstones(), value));
+            var remainingClasses = filterTombstonedClasses(safeJSON(_sl.get('hw5ren:classes') || '[]', []), deletedRegistry);
+            setClasses(remainingClasses);
+            _sl.set('hw5ren:classes', JSON.stringify(remainingClasses));
+            var activeDeletedId = _sl.get('hw5ren:activeClass') || activeClassId;
+            if (activeDeletedId && !remainingClasses.some(function(item){ return item && item.id === activeDeletedId; })) {
+                if (remainingClasses[0]) switchClass(remainingClasses[0]);
+                else {
+                    setActiveClassId(''); _sl.remove('hw5ren:activeClass');
+                    setClassName(''); setSchoolName(''); setSchoolYear('');
+                }
+            }
             return;
         }
         if (key.indexOf('groupVersions:') === 0) {
@@ -6115,9 +6214,10 @@ function App() {
         return saveGuardedSettingsDocument(key, o, '幹部資料', 'officers');
     }
     function saveClasses(updated) {
-        setClasses(updated);
-        _sl.set("hw5ren:classes", JSON.stringify(updated));
-        saveSettingsToFirebase(undefined, undefined, undefined, updated);
+        var safeClasses = filterTombstonedClasses(updated);
+        setClasses(safeClasses);
+        _sl.set("hw5ren:classes", JSON.stringify(safeClasses));
+        saveSettingsToFirebase(undefined, undefined, undefined, safeClasses);
     }
 
     async function saveSettingsAtomic(next) {
@@ -6145,6 +6245,7 @@ function App() {
                 semEnd1:next.semEnd1 || '', semEnd2:next.semEnd2 || '',
                 createdAt:new Date().toLocaleDateString("zh-TW")
             });
+            updatedClasses = filterTombstonedClasses(updatedClasses);
 
             setClassName(next.className); setSchoolName(next.schoolName); setSchoolYear(next.schoolYear);
             setSemStart1(next.semStart1); setSemStart2(next.semStart2); setClassSize(next.classSize);
@@ -6218,12 +6319,13 @@ function App() {
             setSchoolEventFocusImportant(false); setExpandedSchoolEvents({});
         } catch(exEvents) { setSchoolEventStore(normalizeSchoolEventStore({})); }
         setShowClassDropdown(false);
-        // 切換年份：月曆跳到該班級的學年
-        var yr = parseInt(cls.year) || new Date().getFullYear();
-        var mo = new Date().getMonth();
+        // 今天落在該學年度（8 月～隔年 7 月）時停在今天；否則停在該學年 8 月。
+        var landing = academicLandingMonth(cls.year);
+        var yr = landing.year;
+        var mo = landing.month;
         setCurYear(yr);
         setCurMonth(mo);
-        setSelDate(yr + '-' + String(mo+1).padStart(2,'0') + '-01');
+        setSelDate(landing.date);
         setView("month");
         // 重新載入該班級的分組（傳入 cls.id 避免 activeClassId 閉包舊值問題）
         try {
@@ -6280,6 +6382,216 @@ function App() {
         saveClasses(updated);
         switchClass(cls);
         return { ok:true, duplicate:false, classId:id };
+    }
+    async function permanentlyDeleteClass(targetClass) {
+        if (deleteBusyClassId || !targetClass) return;
+        var target = (classes || []).find(function(item){ return item && item.id === targetClass.id; }) || targetClass;
+        var aliases = classAliasesFor(target);
+        if (!aliases.length) { alert('無法辨識這個班級的資料範圍，已停止刪除'); return; }
+        var label = String(target.className || target.id || '未命名班級');
+        var typed = window.prompt(
+            '這會永久刪除「' + label + '」的所有資料：\n' +
+            '作業、出勤、每日輔導、週計畫、正式輔導、分組、幹部、行事曆及所有封存。\n\n' +
+            '刪除後舊封存也不會再把這個班級帶回。\n請輸入完整班名「' + label + '」確認：'
+        );
+        if (typed === null) return;
+        if (typed.trim() !== label) { alert('班名不相符，沒有刪除任何資料'); return; }
+        if (firebaseUid && !navigator.onLine) {
+            alert('目前離線。為確保雲端與本機能一次完整刪除，請連上網路後再操作。');
+            return;
+        }
+        setDeleteBusyClassId(String(target.id || aliases[0]));
+        try {
+            var aliasMap = {};
+            aliases.forEach(function(alias){ aliasMap[alias] = true; });
+            function belongsToTarget(value) {
+                return !!aliasMap[String(value || '').replace(/:$/, '')];
+            }
+            function primaryKeyBelongs(key) {
+                return aliases.some(function(alias) {
+                    return key.indexOf(alias + ':day:') === 0 || key.indexOf(alias + ':counsel:') === 0;
+                });
+            }
+
+            var localKeys = await idbKeys();
+            var localDeleteKeys = [];
+            for (var li = 0; li < localKeys.length; li++) {
+                var localKey = String(localKeys[li] || '');
+                var removeLocal = primaryKeyBelongs(localKey);
+                if (!removeLocal) {
+                    removeLocal = aliases.some(function(alias) {
+                        return localKey.indexOf(secondaryPrefix('wp', alias)) === 0 ||
+                            localKey.indexOf(secondaryPrefix('gr', alias)) === 0 ||
+                            localKey === 'yearArchive:' + alias ||
+                            localKey === 'yearArchiveIndex:' + alias;
+                    });
+                }
+                if (!removeLocal && localKey.indexOf('conflict:') === 0) {
+                    var conflictObj = parseStoredObject(await idbGet(localKey), null);
+                    removeLocal = !!(conflictObj && (
+                        belongsToTarget(conflictObj.classKey) ||
+                        primaryKeyBelongs(String(conflictObj.originalKey || '')) ||
+                        aliases.some(function(alias){ return String(conflictObj.localEnvelopeKey || '').indexOf(':' + encodeURIComponent(alias) + ':') >= 0; })
+                    ));
+                }
+                if (removeLocal) localDeleteKeys.push(localKey);
+            }
+
+            var cloudPrimaryKeys = [], cloudPlans = [], cloudGuidance = [], cloudSettingKeys = [];
+            if (firebaseUid) {
+                for (var ai = 0; ai < aliases.length; ai++) {
+                    var alias = aliases[ai];
+                    var cloudPrimary = await window.fsGetAll(firebaseUid, alias + ':');
+                    Object.keys(cloudPrimary || {}).forEach(function(key) {
+                        if (primaryKeyBelongs(key)) cloudPrimaryKeys.push(key);
+                    });
+                    var archiveBase = 'yearArchive:' + alias;
+                    var cloudArchives = await window.fsGetAll(firebaseUid, archiveBase);
+                    Object.keys(cloudArchives || {}).forEach(function(key) {
+                        if (key === archiveBase || key.indexOf(archiveBase + ':') === 0) cloudPrimaryKeys.push(key);
+                    });
+                    cloudPrimaryKeys.push('yearArchiveIndex:' + alias);
+                    cloudSettingKeys.push('groupVersions:' + alias, 'officers:' + alias, 'schoolCalendar:' + alias, 'schoolEvents:' + alias);
+                }
+                var allPlans = [];
+                var planSnapshot = await firebase.firestore().collection('users').doc(firebaseUid).collection('weeklyPlans').get();
+                planSnapshot.forEach(function(doc){ var data = doc.data() || {}; if (!data.id) data.id = doc.id; allPlans.push(data); });
+                cloudPlans = allPlans.filter(function(item) {
+                    return item && item.id && belongsToTarget(item.classKey || item.classId || getGrLegacyKey());
+                });
+                var allGuidance = [];
+                var guidanceSnapshot = await firebase.firestore().collection('users').doc(firebaseUid).collection('guidanceRecords').get();
+                guidanceSnapshot.forEach(function(doc){ var data = doc.data() || {}; if (!data.id) data.id = doc.id; allGuidance.push(data); });
+                cloudGuidance = allGuidance.filter(function(item) {
+                    return item && item.id && belongsToTarget(item.classKey || item.classId || getGrLegacyKey());
+                });
+                cloudPrimaryKeys = Array.from(new Set(cloudPrimaryKeys));
+                cloudSettingKeys = Array.from(new Set(cloudSettingKeys));
+
+                var remoteDeleteErrors = [];
+                var allCloudDataKeys = cloudPrimaryKeys.concat(cloudSettingKeys);
+                for (var ci = 0; ci < allCloudDataKeys.length; ci += 8) {
+                    var keyBatch = allCloudDataKeys.slice(ci, ci + 8);
+                    var keyResults = await Promise.all(keyBatch.map(async function(key) {
+                        try { await window.fsDelete(firebaseUid, key); return null; }
+                        catch(e) { return key; }
+                    }));
+                    remoteDeleteErrors = remoteDeleteErrors.concat(keyResults.filter(Boolean));
+                }
+                for (var wi = 0; wi < cloudPlans.length; wi++) {
+                    try { await window.secondaryDeleteGuarded(firebaseUid, 'wp', cloudPlans[wi].id, null, true); }
+                    catch(eWpDelete) { remoteDeleteErrors.push('weeklyPlans/' + cloudPlans[wi].id); }
+                }
+                for (var gi = 0; gi < cloudGuidance.length; gi++) {
+                    try { await window.secondaryDeleteGuarded(firebaseUid, 'gr', cloudGuidance[gi].id, null, true); }
+                    catch(eGrDelete) { remoteDeleteErrors.push('guidanceRecords/' + cloudGuidance[gi].id); }
+                }
+                if (remoteDeleteErrors.length) {
+                    throw new Error('雲端仍有 ' + remoteDeleteErrors.length + ' 個項目未刪除，班級清單暫時保留，請重新操作');
+                }
+            }
+
+            var previousDeletedRegistry = readClassTombstones();
+            var deletedRegistry = addClassTombstone(target);
+            if (firebaseUid) {
+                var registryResult = await window.fsSetGuarded(
+                    firebaseUid, 'settings:deletedClasses',
+                    { items:deletedRegistry, updatedAt:new Date().toISOString() },
+                    null, true
+                );
+                if (!registryResult || !registryResult.ok) {
+                    writeClassTombstones(previousDeletedRegistry);
+                    throw new Error('防復活登記尚未寫入雲端，請重新操作');
+                }
+                setSyncRevision('settings:deletedClasses', registryResult);
+                clearSettingsDirty(['settings:deletedClasses']);
+            } else {
+                markSettingsDirty('settings:deletedClasses', '已刪除班級登記');
+            }
+
+            for (var di = 0; di < localDeleteKeys.length; di++) await idbDelete(localDeleteKeys[di]);
+            var localStorageRemove = [];
+            for (var si = 0; si < _sl.length(); si++) {
+                var storageKey = _sl.key(si);
+                if (!storageKey) continue;
+                var removeStorage = aliases.some(function(alias) {
+                    return storageKey.indexOf('hw5ren:' + alias + ':') === 0 ||
+                        storageKey.indexOf('hw5ren:c:' + alias + ':') === 0 ||
+                        storageKey === 'hw5ren:groups:' + alias ||
+                        storageKey === 'hw5ren:groupVersions:' + alias ||
+                        storageKey === 'hw5ren:officers:' + alias ||
+                        storageKey === 'hw5ren:schoolCal:' + alias ||
+                        storageKey === 'hw5ren:schoolEvents:' + alias;
+                });
+                if (removeStorage) localStorageRemove.push(storageKey);
+            }
+            localStorageRemove.forEach(function(key){ _sl.remove(key); });
+            clearDirtyKeys(localDeleteKeys.concat(cloudPrimaryKeys));
+            clearSettingsDirty(cloudSettingKeys);
+            var syncMeta = readSyncMeta();
+            Object.keys(syncMeta).forEach(function(key) {
+                if (primaryKeyBelongs(key) || cloudSettingKeys.indexOf(key) >= 0) delete syncMeta[key];
+            });
+            try { _sl.set(SYNC_META_KEY, JSON.stringify(syncMeta)); } catch(exSyncMeta) {}
+
+            var remainingClasses = filterTombstonedClasses((classes || []).filter(function(item){ return item && item.id !== target.id; }), deletedRegistry);
+            setClasses(remainingClasses);
+            _sl.set('hw5ren:classes', JSON.stringify(remainingClasses));
+            setYearRecords(function(prev) {
+                var next = (prev || []).filter(function(item) {
+                    var ref = { id:item.id || item.classId || (String(item.year || '') + '_' + String(item.className || '')), year:item.year, className:item.className };
+                    return !isClassTombstoned(ref, deletedRegistry);
+                });
+                _sl.set('hw5ren:years', JSON.stringify(next));
+                return next;
+            });
+
+            var wasActive = aliases.some(function(alias){ return alias === (_sl.get('hw5ren:activeClass') || activeClassId); });
+            var fallback = remainingClasses[0] || null;
+            if (wasActive && fallback) {
+                switchClass(fallback);
+            } else if (wasActive) {
+                setActiveClassId(''); _sl.remove('hw5ren:activeClass');
+                setClassName(''); setSchoolName(''); setSchoolYear('');
+                _sl.remove('hw5ren:className'); _sl.remove('hw5ren:school'); _sl.remove('hw5ren:year');
+                setGroups([{ id:1, label:'第1組', members:[], leader:0, secretary:0 }]);
+                setGroupVersions([]); setOfficers({ '1':[], '2':[] }); setSchoolCalendar({});
+            }
+
+            markSettingsDirty('settings:main', '班級設定');
+            if (firebaseUid) {
+                var currentClass = wasActive ? fallback : (remainingClasses.find(function(item){ return item.id === (_sl.get('hw5ren:activeClass') || activeClassId); }) || fallback);
+                var mainValue = buildSettingsMainValue(
+                    currentClass ? currentClass.className : '',
+                    currentClass ? currentClass.school : '',
+                    currentClass ? currentClass.year : '',
+                    remainingClasses,
+                    safeJSON(_sl.get('hw5ren:groups') || '[]', []),
+                    parseInt(_sl.get('hw5ren:classSize') || '40', 10) || 40,
+                    _sl.get('hw5ren:semStart1') || '',
+                    _sl.get('hw5ren:semStart2') || '',
+                    safeJSON(_sl.get('hw5ren:schoolCal') || '{}', {})
+                );
+                mainValue.deletedClasses = deletedRegistry;
+                var mainResult = await window.fsSetGuarded(firebaseUid, 'settings:main', mainValue, null, true);
+                if (mainResult && mainResult.ok) {
+                    setSyncRevision('settings:main', mainResult);
+                    clearSettingsDirty(['settings:main']);
+                } else {
+                    scheduleRetrySync('班級刪除後設定待同步');
+                }
+            }
+            setDeleteBusyClassId('');
+            alert(
+                '✅「' + label + '」已完整刪除\n' +
+                '本機資料 ' + localDeleteKeys.length + ' 筆' +
+                (firebaseUid ? '、雲端資料 ' + (cloudPrimaryKeys.length + cloudPlans.length + cloudGuidance.length) + ' 筆' : '') +
+                '。\n舊封存不會再把它帶回。'
+            );
+        } catch(e) {
+            setDeleteBusyClassId('');
+            alert('刪除未完成：' + String((e && e.message) || e));
+        }
     }
     async function checkCurrentArchive() {
         var ck = currentClassKey();
@@ -6874,8 +7186,28 @@ function App() {
             setStor(function(s) { return Object.assign({}, s, { msg: '☁️ 從雲端載入…' }); });
             try {
                 // ── 設定資料：從 Firebase 還原 className / schoolName / schoolYear / classes / groups / classSize / semStart ──
+                var deletedClassesMeta = null, remoteDeletedClasses = [];
+                try {
+                    deletedClassesMeta = await window.fsGetWithMeta(firebaseUid, 'settings:deletedClasses');
+                    remoteDeletedClasses = deletedClassesMeta && deletedClassesMeta.value
+                        ? normalizeClassTombstones(deletedClassesMeta.value)
+                        : [];
+                    var beforeDeleted = readClassTombstones();
+                    var mergedDeleted = writeClassTombstones(mergeClassTombstones(beforeDeleted, remoteDeletedClasses));
+                    applySettingsDocument('settings:deletedClasses', { items:mergedDeleted });
+                    if (deletedClassesMeta) setSyncRevision('settings:deletedClasses', deletedClassesMeta);
+                    if (JSON.stringify(mergedDeleted) !== JSON.stringify(remoteDeletedClasses)) {
+                        markSettingsDirty('settings:deletedClasses', '已刪除班級登記');
+                    }
+                } catch(exDeletedRegistry) {
+                    remoteDeletedClasses = readClassTombstones();
+                    if (remoteDeletedClasses.length) markSettingsDirty('settings:deletedClasses', '已刪除班級登記');
+                }
                 var savedSettingsMeta = await window.fsGetWithMeta(firebaseUid, 'settings:main');
                 var savedSettings = savedSettingsMeta ? savedSettingsMeta.value : null;
+                if (savedSettings && savedSettings.deletedClasses) {
+                    writeClassTombstones(mergeClassTombstones(readClassTombstones(), savedSettings.deletedClasses));
+                }
                 if (safeGet('hw5ren:settingsDirty') === '1' && getDirtySettingKeys().length === 0) {
                     markSettingsDirty('settings:main', '班級設定');
                     var legacyDirtyCid = safeGet('hw5ren:activeClass') || activeClassId;
@@ -6894,27 +7226,43 @@ function App() {
                         setSchoolYear(savedSettings.schoolYear);
                         try { _sl.set('hw5ren:year', savedSettings.schoolYear); } catch(ex) {}
                         // 同步月曆年份，避免班級與月曆顯示不一致
-                        var _restoredYr = parseInt(savedSettings.schoolYear);
-                        if (_restoredYr && _restoredYr !== curYear) {
-                            setCurYear(_restoredYr);
-                            setCurMonth(new Date().getMonth());
-                            setSelDate(_restoredYr + '-' + String(new Date().getMonth()+1).padStart(2,'0') + '-01');
-                            setTimeout(function(){ doLoadMonth(_restoredYr, new Date().getMonth()); }, 80);
+                        var _landing = academicLandingMonth(savedSettings.schoolYear);
+                        if (_landing.year !== curYear || _landing.month !== curMonth) {
+                            setCurYear(_landing.year);
+                            setCurMonth(_landing.month);
+                            setSelDate(_landing.date);
+                            setTimeout(function(){ doLoadMonth(_landing.year, _landing.month); }, 80);
                         }
                     }
                     if (savedSettings.classes && Array.isArray(savedSettings.classes)) {
-                        setClasses(savedSettings.classes);
-                        try { _sl.set('hw5ren:classes', JSON.stringify(savedSettings.classes)); } catch(ex) {}
+                        var _safeSavedClasses = filterTombstonedClasses(savedSettings.classes);
+                        setClasses(_safeSavedClasses);
+                        try { _sl.set('hw5ren:classes', JSON.stringify(_safeSavedClasses)); } catch(ex) {}
+                        if (_safeSavedClasses.length !== savedSettings.classes.length) markSettingsDirty('settings:main', '班級設定');
                         // 新裝置修復：activeClass 為空時，比對 year+className 自動選定班級，否則組別/幹部還原會被跳過
                         try {
-                            if (!safeGet('hw5ren:activeClass') && savedSettings.classes.length > 0) {
+                            var _activeBeforePick = safeGet('hw5ren:activeClass');
+                            var _activeStillExists = _safeSavedClasses.some(function(item){ return item && item.id === _activeBeforePick; });
+                            if ((!_activeBeforePick || !_activeStillExists) && _safeSavedClasses.length > 0) {
                                 var _pick = null;
-                                for (var pi = 0; pi < savedSettings.classes.length; pi++) {
-                                    var pc = savedSettings.classes[pi];
+                                for (var pi = 0; pi < _safeSavedClasses.length; pi++) {
+                                    var pc = _safeSavedClasses[pi];
                                     if (pc.year === savedSettings.schoolYear && pc.className === savedSettings.className) { _pick = pc; break; }
                                 }
-                                if (!_pick) _pick = savedSettings.classes[0];
+                                if (!_pick) _pick = _safeSavedClasses[0];
                                 if (_pick && _pick.id) _sl.set('hw5ren:activeClass', _pick.id);
+                            }
+                            var _resolvedActiveId = safeGet('hw5ren:activeClass');
+                            var _resolvedActiveClass = _safeSavedClasses.find(function(item){ return item && item.id === _resolvedActiveId; }) || _safeSavedClasses[0];
+                            if (_resolvedActiveClass) {
+                                setClassName(_resolvedActiveClass.className || '');
+                                setSchoolName(_resolvedActiveClass.school || '');
+                                setSchoolYear(String(_resolvedActiveClass.year || ''));
+                                _sl.set('hw5ren:className', _resolvedActiveClass.className || '');
+                                _sl.set('hw5ren:school', _resolvedActiveClass.school || '');
+                                _sl.set('hw5ren:year', String(_resolvedActiveClass.year || ''));
+                                var _resolvedLanding = academicLandingMonth(_resolvedActiveClass.year);
+                                setCurYear(_resolvedLanding.year); setCurMonth(_resolvedLanding.month); setSelDate(_resolvedLanding.date);
                             }
                         } catch(exA) {}
                     }
@@ -6970,9 +7318,9 @@ function App() {
                 // ── 幹部與組別版本：依全部班級從 Firebase 還原（避免其他班級在新裝置上永遠空白）──
                 try {
                     var _curActive = safeGet('hw5ren:activeClass');
-                    if (savedSettings && savedSettings.classes && Array.isArray(savedSettings.classes) && savedSettings.classes.length > 0) {
-                        for (var _ci = 0; _ci < savedSettings.classes.length; _ci++) {
-                            var _clsObj = savedSettings.classes[_ci];
+                    if (savedSettings && Array.isArray(_safeSavedClasses) && _safeSavedClasses.length > 0) {
+                        for (var _ci = 0; _ci < _safeSavedClasses.length; _ci++) {
+                            var _clsObj = _safeSavedClasses[_ci];
                             if (!_clsObj || !_clsObj.id) continue;
                             var _cid = _clsObj.id;
                             // 幹部
@@ -7087,57 +7435,9 @@ function App() {
                     }
                     await Promise.all(_counselPending.map(function(p){ return idbSet(p.key, p.val); }));
                 } catch(exC) {}
-                // ── 前綴認養備援：本機前綴撲空時，掃描雲端所有 day:/counsel: 鑰匙認養進目前前綴 ──
+                // 不再自動把「其他／舊前綴」資料認養到空白班級。
+                // 舊版這段備援會讓空白的六壬班誤拿到五年壬班資料；資料遷移改由完整備份明確還原。
                 var cAdopt = 0;
-                try {
-                    if (c === 0 && _pfx && savedSettings.classes && savedSettings.classes.length > 0 && (function(){ var minY = null; for (var mi = 0; mi < savedSettings.classes.length; mi++) { var yv = parseInt(savedSettings.classes[mi].year); if (minY === null || yv < minY) minY = yv; } return parseInt(_sl.get('hw5ren:year')) === minY; })()) {
-                        var allCloud = await window.fsGetAll(firebaseUid, '');
-                        var _adoptPending = [];
-                        for (var ak in allCloud) {
-                            var marker = null;
-                            if (ak.indexOf('day:') >= 0) marker = 'day:';
-                            else if (ak.indexOf('counsel:') >= 0) marker = 'counsel:';
-                            if (!marker) continue;
-                            var adoptDate = ak.slice(ak.indexOf(marker) + marker.length);
-                            if (!/^\d{4}-\d{2}-\d{2}$/.test(adoptDate)) continue;
-                            var localKey = _pfx + marker + adoptDate;
-                            var already = null;
-                            try { already = await idbGet(localKey); } catch(exAE) {}
-                            if (already) continue;
-                            _adoptPending.push({ key: localKey, val: allCloud[ak] });
-                            try {
-                                if (marker === 'day:') _sl.set('hw5ren:' + _pfx + adoptDate, allCloud[ak]);
-                                else _sl.set('hw5ren:c:' + _pfx + adoptDate, allCloud[ak]);
-                            } catch(exAS) {}
-                            cAdopt++;
-                        }
-                        await Promise.all(_adoptPending.map(function(p){ return idbSet(p.key, p.val); }));
-                    }
-                } catch(exAd) {}
-                // ── 一次性污染清除：僅在目前班級為 2027 學年六壬且尚未清過時，刪除本機被誤認養的資料 ──
-                try {
-                    var _pollPfx = '2027_' + '\u516d\u58ec' + ':';
-                    if (_pfx === _pollPfx && !safeGet('hw5ren:pollClean1')) {
-                        var _pAllKeys = await idbKeys();
-                        for (var _pj = 0; _pj < _pAllKeys.length; _pj++) {
-                            var _pk = _pAllKeys[_pj];
-                            if (_pk.indexOf(_pollPfx + 'day:') === 0 || _pk.indexOf(_pollPfx + 'counsel:') === 0) {
-                                try { await idbDelete(_pk); } catch(exPD) {}
-                            }
-                        }
-                        try {
-                            var _plKeysToRemove = [];
-                            for (var _pi2 = 0; _pi2 < _sl.length(); _pi2++) {
-                                var _plk = _sl.key(_pi2);
-                                if (_plk && (_plk.indexOf('hw5ren:' + _pollPfx + 'day:') === 0 || _plk.indexOf('hw5ren:c:' + _pollPfx + 'counsel:') === 0)) {
-                                    _plKeysToRemove.push(_plk);
-                                }
-                            }
-                            for (var _pi3 = 0; _pi3 < _plKeysToRemove.length; _pi3++) { _sl.remove(_plKeysToRemove[_pi3]); }
-                        } catch(exPLS) {}
-                        _sl.set('hw5ren:pollClean1', '1');
-                    }
-                } catch(exPC) {}
                 setDriveStatus('ok');
                 setDriveError('');
                 if (localSettingsDirty || getDirtySettingKeys().length > 0 || getDirtyKeys(_pfx).length > 0) scheduleAutoSync();
@@ -7290,7 +7590,8 @@ function App() {
                 className:_sl.get('hw5ren:className') || '',
                 schoolName:_sl.get('hw5ren:school') || '',
                 schoolYear:_sl.get('hw5ren:year') || '',
-                classes:safeJSON(_sl.get('hw5ren:classes') || '[]', []),
+                classes:filterTombstonedClasses(safeJSON(_sl.get('hw5ren:classes') || '[]', [])),
+                deletedClasses:readClassTombstones(),
                 groups:safeJSON(_sl.get('hw5ren:groups') || '[]', []),
                 classSize:parseInt(_sl.get('hw5ren:classSize') || '40',10) || 40,
                 semStart1:_sl.get('hw5ren:semStart1') || '',
@@ -7301,6 +7602,9 @@ function App() {
                 appVersion:APP_VERSION,
                 updatedAt:new Date().toISOString()
             };
+        }
+        if (key === 'settings:deletedClasses') {
+            return { items:readClassTombstones(), updatedAt:new Date().toISOString() };
         }
         if (key.indexOf('groupVersions:') === 0) {
             var gvCid = key.slice('groupVersions:'.length);
@@ -7322,6 +7626,7 @@ function App() {
     }
     function settingSpecForKey(key) {
         if (key === 'settings:main') return { label:'班級設定', type:'main' };
+        if (key === 'settings:deletedClasses') return { label:'已刪除班級登記', type:'deletedClasses' };
         if (key.indexOf('groupVersions:') === 0) return { label:'組別版本', type:'groups' };
         if (key.indexOf('officers:') === 0) return { label:'幹部資料', type:'officers' };
         if (key.indexOf('schoolCalendar:') === 0) return { label:'學校行事曆', type:'calendar' };
@@ -8248,6 +8553,12 @@ function App() {
         else
             setCurMonth(m => m + 1);
     }
+    function goMonthToday() {
+        var parts = today().split('-').map(Number);
+        setCurYear(parts[0]);
+        setCurMonth(parts[1] - 1);
+        setSelDate(today());
+    }
     // ── Month calendar grid ──
     function CalendarCell({ dateStr, d }) {
         var _a, _b, _c, _d;
@@ -9150,18 +9461,7 @@ function App() {
                                                 cls.year + "　" + cls.school + "　" + cls.className),
                                             React.createElement("div", { className: "cd-item-sub" }, "建立於 " + (cls.createdAt || "-"))
                                         ),
-                                        cls.id === activeClassId 
-                                    ? React.createElement("span", { className: "cd-item-badge" }, "✓ 目前")
-                                    : React.createElement("button", {
-                                        onClick: (e) => { 
-                                            e.stopPropagation(); 
-                                            if (confirm("確定刪除「"+cls.year+"年 "+cls.className+"」班級記錄？\n（不會刪除作業資料，只移除班級清單）")) {
-                                                const updated = classes.filter(c => c.id !== cls.id);
-                                                saveClasses(updated);
-                                            }
-                                        },
-                                        style:{padding:"2px 8px",borderRadius:8,border:"1px solid rgba(255,80,80,.4)",background:"rgba(255,60,60,.15)",color:"rgba(255,120,120,.9)",fontSize:11,cursor:"pointer"}
-                                    }, "✕ 刪除")
+                                        cls.id === activeClassId && React.createElement("span", { className: "cd-item-badge" }, "✓ 目前")
                                     )
                                 ),
                             React.createElement("div", { className: "cd-add", onClick: () => { setShowClassDropdown(false); setView("settings"); } },
@@ -9224,6 +9524,7 @@ function App() {
                         React.createElement("span", { className: "nerv-dot" }, "\u00B7"),
                         React.createElement("span", { className: "nerv-mo" }, String(curMonth + 1).padStart(2, "0")))
                     : curYear+" 年 "+(curMonth+1)+" 月"),
+                React.createElement("button", { className:"nav-btn", onClick:goMonthToday, 'aria-label':"回到今天", title:"回到今天", style:{width:"auto",minWidth:46,padding:"0 9px",fontSize:12,fontWeight:800} }, isNerv ? "NOW" : "今天"),
                 React.createElement("button", { className: "nav-btn", onClick: nextMonth, 'aria-label':"下一個月" }, "\u203A"),
                 renderSyncChip('nav', isNerv ? '#ff9a64' : 'rgba(255,255,255,.85)')),
             view === "day" && React.createElement("div", { className: "excel-bar" },
@@ -11749,7 +12050,7 @@ function App() {
         ),
         /* wpInputOpen 已廢棄，改由 hwpicker 處理 */
         view === "settings" && (React.createElement(SettingsView, { groups: groups, saveGroups: saveGroups, groupVersions: groupVersions, saveGroupVersions: saveGroupVersions, saveSettingsAtomic: saveSettingsAtomic, className: className, setClassName: (v) => { setClassName(v); _sl.set("hw5ren:className", v); saveSettingsToFirebase(v, undefined, undefined, undefined); }, schoolName: schoolName, setSchoolName: (v) => { setSchoolName(v); _sl.set("hw5ren:school", v); saveSettingsToFirebase(undefined, v, undefined, undefined); }, schoolYear: schoolYear, setSchoolYear: (v) => { setSchoolYear(v); _sl.set("hw5ren:year", v); saveSettingsToFirebase(undefined, undefined, v, undefined); }, semStart1: semStart1, setSemStart1: (v) => { setSemStart1(v); _sl.set("hw5ren:semStart1", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, v, undefined); }, semStart2: semStart2, setSemStart2: (v) => { setSemStart2(v); _sl.set("hw5ren:semStart2", v); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, undefined, undefined, v); }, semEnd1: semEnd1, semEnd2: semEnd2, schoolCalendar: schoolCalendar, classSize: classSize, setClassSize: (v) => { setClassSize(v); _sl.set("hw5ren:classSize", String(v)); saveSettingsToFirebase(undefined, undefined, undefined, undefined, undefined, v, undefined, undefined); }, officers: officers, saveOfficers: saveOfficers, officerPresets: officerPresets, setOfficerPresets: (v) => { setOfficerPresets(v); _sl.set("hw5ren:officerPresets", JSON.stringify(v)); markSettingsDirty('settings:main', '\u500B\u4EBA\u6E05\u55AE'); }, onClose: () => setView("month"), isNerv: isNerv, idbKeys: idbKeys, idbGet: idbGet, idbDelete: idbDelete, openDB: openDB, DB_STORE: DB_STORE, classes: classes, addClass: addClass, firebaseUid: firebaseUid, checkCurrentArchive:checkCurrentArchive, startSchoolYearTransition:startSchoolYearTransition, onOpenArchive:function(){setView("archive");} })),
-        view === "archive" && (React.createElement(ArchiveView, { idbKeys: idbKeys, idbGet: idbGet, idbSet: idbSet, groups: groups, schoolYear: schoolYear, className: className, schoolName: schoolName, classes: classes, yearRecords: yearRecords, isNerv: isNerv, firebaseUid: firebaseUid, onBackupDone: function(){ setBackupEpoch(Date.now()); } })))));
+        view === "archive" && (React.createElement(ArchiveView, { idbKeys: idbKeys, idbGet: idbGet, idbSet: idbSet, groups: groups, schoolYear: schoolYear, className: className, schoolName: schoolName, classes: classes, yearRecords: yearRecords, isNerv: isNerv, firebaseUid: firebaseUid, onBackupDone: function(){ setBackupEpoch(Date.now()); }, onDeleteClass:permanentlyDeleteClass, deleteBusyClassId:deleteBusyClassId })))));
 }
 
     debugStep('RENDER START');
@@ -12002,7 +12303,7 @@ setTimeout(function(){
       }
       var textNode = document.getElementById('limu-update-text');
       var buttonNode = document.getElementById('limu-update-button');
-      textNode.textContent = message || '📦 App v12 已下載完成';
+      textNode.textContent = message || '📦 App v14 已下載完成';
       buttonNode.textContent = mismatch ? '重新檢查' : '立即更新';
       buttonNode.setAttribute('aria-label', mismatch ? '重新檢查部署版本' : '啟用 App 新版本');
       buttonNode.onclick = function(){
@@ -12033,8 +12334,8 @@ setTimeout(function(){
     ]).then(function(results){
       var info = results[0], swText = results[1] || '';
       var myBuild = currentBuildId(), myCache = currentCacheName();
-      if (!info || (myBuild && (info.buildId !== myBuild || info.cacheName !== myCache || swText.indexOf(myBuild) < 0 || swText.indexOf("CACHE_PREFIX + 'v13'") < 0))) {
-        showUpdateBar(reg, '⚠️ 部署檔案版本不一致，請重新上傳完整 v12 部署包', true);
+      if (!info || (myBuild && (info.buildId !== myBuild || info.cacheName !== myCache || swText.indexOf(myBuild) < 0 || swText.indexOf("CACHE_PREFIX + 'v14'") < 0))) {
+        showUpdateBar(reg, '⚠️ 部署檔案版本不一致，請重新上傳完整 v14 部署包', true);
       }
     }).catch(function(){ /* 離線時不顯示混版警告 */ });
     try {
@@ -12045,7 +12346,7 @@ setTimeout(function(){
         clearTimeout(timer);
         var info = event.data || {};
         if (info.buildId && currentBuildId() && info.buildId !== currentBuildId() && !reg.waiting && !reg.installing) {
-          showUpdateBar(reg, '📦 App v12 更新檔已發現，準備下載', false);
+          showUpdateBar(reg, '📦 App v14 更新檔已發現，準備下載', false);
           reg.update();
         }
       };

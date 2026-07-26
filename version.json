@@ -1,8 +1,8 @@
 {
   "name": "LIMU 教師專用小工具",
-  "version": "12.1.0",
-  "buildId": "limu-teacher-v13-20260725",
-  "buildDate": "2026-07-25",
-  "cacheName": "hw-tracker-v13",
-  "schemaVersion": 5
+  "version": "12.2.0",
+  "buildId": "limu-teacher-v14-20260727",
+  "buildDate": "2026-07-27",
+  "cacheName": "hw-tracker-v14",
+  "schemaVersion": 6
 }
