@@ -3241,6 +3241,44 @@
           }
           .app[data-theme="nebula"] main::before{opacity:.25}
         }
+
+        /* ══ v20.8：部署圖示雙備援＋日表依設定組數精準排版 ═════════════
+           不新增裝飾空間；5/6/7 組都只使用既有表格寬度。 */
+        .theme-toggle-iris,
+        .theme-signature-flower{
+          visibility:visible!important;
+          opacity:1!important;
+          image-rendering:auto;
+        }
+        .app[data-theme="mucha"] main::before{
+          opacity:.58;
+        }
+        .homework-group-table{
+          table-layout:fixed;
+          width:100%;
+        }
+        .homework-group-table .th-hw{width:80px}
+        .homework-group-table .th-group{width:auto}
+        .homework-group-table .gc{min-width:0}
+        .homework-group-table.group-count-6 .ml,
+        .homework-group-table.group-count-7 .ml{
+          grid-template-columns:1fr;
+        }
+        @media(max-width:640px){
+          .day-action-bar{
+            /* 略為向兩側延伸，讓金色框線與下方日表形成同一條視覺邊界。 */
+            margin-left:6px;
+            margin-right:6px;
+          }
+          .homework-group-table .th-hw{width:74px}
+          .homework-group-table.group-count-6 .th-hw{width:68px}
+          .homework-group-table.group-count-7 .th-hw{width:62px}
+          .homework-group-table.group-count-6 .badge{width:30px;height:30px}
+          .homework-group-table.group-count-7 .badge{width:28px;height:28px;font-size:15px}
+          .homework-group-table.group-count-6 .gc,
+          .homework-group-table.group-count-7 .gc{padding-left:1px;padding-right:1px}
+          .app[data-theme="mucha"] main::before{opacity:.54}
+        }
 </style>
 <script id="limu-inline-art-bundle">
 (function(){
@@ -3977,10 +4015,10 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const COUNSEL_PERIODS = ["早自習", "第1節", "第2節", "第3節", "第4節", "午休", "第5節", "第6節", "放學後"];
 const COUNSEL_TYPES = ["學習", "行為", "情緒", "人際", "家庭", "其他"];
 const COUNSEL_FOLLOWUP = ["需追蹤", "已處理", "轉介"];
-const APP_VERSION = "16.0.7";
+const APP_VERSION = "16.0.8";
 const APP_BUILD_DATE = "2026-07-27";
-const APP_BUILD_ID = "limu-teacher-v20-7-20260727";
-const APP_CACHE_NAME = "hw-tracker-v20-7";
+const APP_BUILD_ID = "limu-teacher-v20-8-20260727";
+const APP_CACHE_NAME = "hw-tracker-v20-8";
 window.__LIMU_BUILD__ = Object.freeze({
     appVersion: APP_VERSION,
     buildDate: APP_BUILD_DATE,
@@ -7258,12 +7296,11 @@ function App() {
     });
     function withRosterGroups(source) {
         var list = Array.isArray(source) ? source : [];
-        var size = Math.max(0, parseInt(classSize, 10) || 0);
-        if (!size) return list;
-        var used = new Set(list.reduce(function(acc, g) { return acc.concat(g.members || []); }, []));
-        var missing = [];
-        for (var seat = 1; seat <= size; seat++) if (!used.has(seat)) missing.push(seat);
-        return missing.length ? list.concat([{ id: "ungrouped", label: "未分組", members: missing, leader: 0, secretary: 0, derived: true }]) : list;
+        // 日表只顯示「設定中實際存在」的組別。未分組座號仍由設定頁提示，
+        // 不再自行補出 ungrouped 欄，避免 5/6/7 組被多擠出一個英文欄位。
+        return list.filter(function(group) {
+            return group && !group.derived && String(group.id) !== "ungrouped";
+        });
     }
     // 給定日期，回傳該日期適用的組別版本（依 effectiveDate 由新到舊找第一個 <= dateStr 的版本）
     function getGroupsForDate(dateStr) {
@@ -8312,8 +8349,10 @@ function App() {
     const SIGNATURE_IRIS = window.LIMU_ART && window.LIMU_ART.signature
         ? window.LIMU_ART.signature
         : "";
+    const SIGNATURE_IRIS_FILE = "./assets/signature-blue-iris.webp?v=20-8";
     function renderSignatureIrisIcon(compact) {
-        if (!SIGNATURE_IRIS) {
+        var primaryIris = SIGNATURE_IRIS_FILE || SIGNATURE_IRIS;
+        if (!primaryIris) {
             return React.createElement("span", { "aria-hidden":"true", style:{fontSize:compact ? 20 : 24,lineHeight:1} }, "❧");
         }
         return React.createElement("span", {
@@ -8322,12 +8361,18 @@ function App() {
             },
             React.createElement("img", {
                 className:compact ? "theme-toggle-iris" : "theme-signature-flower",
-                src:SIGNATURE_IRIS,
+                src:primaryIris,
                 alt:"",
                 draggable:false,
                 onError:function(event) {
-                    event.currentTarget.style.display = "none";
-                    var fallback = event.currentTarget.nextElementSibling;
+                    var image = event.currentTarget;
+                    if (!image.dataset.inlineFallback && SIGNATURE_IRIS) {
+                        image.dataset.inlineFallback = "1";
+                        image.src = SIGNATURE_IRIS;
+                        return;
+                    }
+                    image.style.display = "none";
+                    var fallback = image.nextElementSibling;
                     if (fallback) fallback.style.display = "inline";
                 }
             }),
@@ -8338,7 +8383,7 @@ function App() {
         { id: 'default', icon: '☀️', name: '一般模式', desc: '清爽藍白配色' },
         { id: 'nebula', icon: '🌌', name: '星雲模式', desc: '天馬座星雲・深邃宇宙' },
         { id: 'nerv', icon: '⬡', name: 'NERV模式', desc: '新世紀福音戰士' },
-        { id: 'mucha', icon: '❧', image: SIGNATURE_IRIS, name: '慕夏・藍紫鳶尾', desc: '你的代表花・智慧、信念與勇氣' },
+        { id: 'mucha', icon: '❧', image: SIGNATURE_IRIS_FILE, name: '慕夏・藍紫鳶尾', desc: '你的代表花・智慧、信念與勇氣' },
     ];
     const isNerv = theme === "nerv";
     const isNebula = theme === "nebula";
@@ -11744,16 +11789,15 @@ function App() {
                 )
             ), document.body),
             React.createElement("div", { className: "table-wrapper hw-table-wrap" },
-                React.createElement("table", null,
+                React.createElement("table", { className:"homework-group-table group-count-" + Math.min(dayGroups.length, 7) },
                     React.createElement("thead", null,
                         React.createElement("tr", null,
-                            React.createElement("th", { className: "th-hw" }, isNerv ? "◈ MISSION" : "作業"),
-                            dayGroups.map(g => React.createElement("th", { key: g.id },
+                            React.createElement("th", { className: "th-hw", "aria-label":"作業名稱" }),
+                            dayGroups.map((g, groupIndex) => React.createElement("th", { key: g.id, className:"th-group" },
                                 React.createElement("span", { className: "gl" }, isNerv
                                     ? React.createElement("span", { className: "nerv-unit-label" },
-                                        React.createElement("span", { className: "nerv-unit-kanji" }, nervUnit(g.id)))
-                                    : String(g.id)))),
-                            React.createElement("th", { className: "th-d" }))),
+                                        React.createElement("span", { className: "nerv-unit-kanji" }, nervUnit(groupIndex + 1)))
+                                    : String(groupIndex + 1)))))),
                     React.createElement("tbody", null,
                         dayRows.map((row, ri) => {
                             var isDual = row.hwName && Array.from(DUAL_HW).some(function(k){ return row.hwName.startsWith(k); });
@@ -11827,8 +11871,7 @@ function App() {
                                                 s === "untouched" && React.createElement("span", { className: "badge ub" }, "−"),
                                                 s === "partial" && ms.length > 0 && React.createElement("div", { className: "ml" }, ms.map(n => React.createElement("span", { key: n, className: "mn" }, n)))
                                             );
-                                        }),
-                                        React.createElement("td", { style:{width:0,padding:0}, rowSpan: 2 })
+                                        })
                                     ),
                                     React.createElement("tr", {
                                         className: isDualDeleting ? "hw-row-deleting" : "hw-row-normal",
@@ -11920,8 +11963,7 @@ function App() {
                                             s === "untouched" && row.hwName && React.createElement("span", { className: "badge ub" }, "\u2212"),
                                             ex.length > 0 && (React.createElement("div", { className: "ml" }, ex.map(n => React.createElement("span", { key: n, className: "mn mn-exempt" }, n)))),
                                             s === "partial" && ms.length > 0 && (React.createElement("div", { className: "ml" }, ms.map(n => React.createElement("span", { key: n, className: "mn" }, n))))));
-                                    }),
-                                    React.createElement("td", { style:{width:0,padding:0} })
+                                    })
                                 )
                             );
                         }),
@@ -11929,7 +11971,7 @@ function App() {
                                 // 直接開 hwpicker，ri 設為 -1（新增模式）
                                 hwPickerOpen(-1);
                             } },
-                            React.createElement("td", { colSpan: 7 },
+                            React.createElement("td", { colSpan: dayGroups.length + 1 },
                                 isNerv ? "[ ADD MISSION LOG ]" : "➕ 新增功課"))))),
             React.createElement("div", { className: "slip-panel" },
                 React.createElement("div", { className: "slip-header" },
@@ -14381,13 +14423,13 @@ setTimeout(function(){
 </script>
 
 <script>
-// ── Service Worker 註冊（v20.7：完整接入藍紫鳶尾主題圖示）──
+// ── Service Worker 註冊（v20.8：圖示雙備援＋動態組別表格）──
 (function() {
   if (!('serviceWorker' in navigator)) return;
   var updateRegistration = null;
   var reloadingForUpdate = false;
-  var SW_BUILD_ID = 'limu-teacher-v20-7-20260727';
-  var SW_CACHE_NAME = 'hw-tracker-v20-7';
+  var SW_BUILD_ID = 'limu-teacher-v20-8-20260727';
+  var SW_CACHE_NAME = 'hw-tracker-v20-8';
   var SW_URL = './sw.js?build=' + encodeURIComponent(SW_BUILD_ID);
   var lastUpdateCheck = 0;
 
@@ -14426,7 +14468,7 @@ setTimeout(function(){
       }
       var textNode = document.getElementById('limu-update-text');
       var buttonNode = document.getElementById('limu-update-button');
-      textNode.textContent = message || '📦 App 16.0.7 已下載完成';
+      textNode.textContent = message || '📦 App 16.0.8 已下載完成';
       buttonNode.textContent = mode === 'mismatch' ? '重新檢查' : mode === 'switching' ? '切換中…' : '立即更新';
       buttonNode.disabled = mode === 'switching';
       buttonNode.setAttribute('aria-label', mode === 'mismatch' ? '重新檢查部署版本' : '啟用 App 新版本');
@@ -14481,7 +14523,7 @@ setTimeout(function(){
         swText.indexOf(info.cacheName) >= 0
       );
       if (!completeServerBuild) {
-        showUpdateBar(reg, '⚠️ 網站上的部署檔案版本不一致，請重新上傳完整 v20.7', 'mismatch');
+        showUpdateBar(reg, '⚠️ 網站上的部署檔案版本不一致，請重新上傳完整 v20.8', 'mismatch');
         return;
       }
       if (info.buildId !== myBuild || info.cacheName !== myCache) {
@@ -14492,7 +14534,7 @@ setTimeout(function(){
         return;
       }
       if (myBuild !== SW_BUILD_ID || myCache !== SW_CACHE_NAME) {
-        showUpdateBar(reg, '⚠️ 目前頁面不是完整 App 16.0.7，請重新載入', 'mismatch');
+        showUpdateBar(reg, '⚠️ 目前頁面不是完整 App 16.0.8，請重新載入', 'mismatch');
       }
     }).catch(function(){ /* 離線時不顯示混版警告 */ });
 
@@ -14526,7 +14568,7 @@ setTimeout(function(){
       try { window._writeLog('step', 'SW registered, scope: ' + reg.scope); } catch(e) {}
 
       if (reg.waiting) {
-        showUpdateBar(reg, '📦 App 16.0.7 已下載完成', 'switching');
+        showUpdateBar(reg, '📦 App 16.0.8 已下載完成', 'switching');
         reg.waiting.postMessage({ type:'SKIP_WAITING' });
       }
 
@@ -14535,10 +14577,10 @@ setTimeout(function(){
         if (!newWorker) return;
         newWorker.addEventListener('statechange', function() {
           if (newWorker.state === 'installed') {
-            showUpdateBar(reg, '📦 App 16.0.7 已下載完成，正在切換', 'switching');
+            showUpdateBar(reg, '📦 App 16.0.8 已下載完成，正在切換', 'switching');
             newWorker.postMessage({ type:'SKIP_WAITING' });
           } else if (newWorker.state === 'redundant') {
-            showUpdateBar(reg, '⚠️ 更新檔安裝失敗，請確認已上傳完整 v20.7', 'mismatch');
+            showUpdateBar(reg, '⚠️ 更新檔安裝失敗，請確認已上傳完整 v20.8', 'mismatch');
           }
         });
       });
