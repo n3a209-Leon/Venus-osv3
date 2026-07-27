@@ -1,4 +1,10 @@
-# LIMU v20.2 藍紫鳶尾裝飾整合
+# LIMU v20.4 藍紫鳶尾裝飾整合
+
+## 圖片載入與可見度修正
+
+實際顯示用的 11 張 WebP 已直接封裝進 `index.html`。CSS 背景與 React 圖片都讀取同一份內嵌美術資料，不再因網站子目錄、漏傳圖片、主機 MIME 設定或舊 Service Worker 快取而破圖。
+
+`assets` 內仍保留 WebP 與透明 PNG 原圖，但它們現在是可編輯來源與備份，不是 App 正常顯示的必要依賴。
 
 ## 個人識別花
 
@@ -9,14 +15,14 @@
 | 檔案 | 實際用途 | 操作保護 |
 |---|---|---|
 | `signature-blue-iris.webp` | 主題選擇器與個人識別徽記 | 純展示，不接收點擊 |
-| `mucha-master-frame.webp` | 慕夏主題頁面主外框 | 位於主內容底層，只從外緣與間隙露出 |
-| `mucha-card-frame.webp` | 月曆、摘要與面板低透明度外框 | 位於卡片內容下方，中央留空 |
-| `mucha-corner.webp` | 主內容上緣的小型角花收邊 | 被內容卡遮住時不會穿透文字 |
-| `mucha-divider-left/right.webp` | 頁首、狀態群組、班級列與底部導覽的左右端飾 | 中央完全淨空 |
+| `mucha-master-frame.webp` | 慕夏主題頁面主外框 | 以外緣切片繪製，中央透明；內容從安全內距開始 |
+| `mucha-card-frame.webp` | 月曆、摘要與面板外框 | 只繪製約 7～10px 框線，不進入資料中心區 |
+| `mucha-corner.webp` | 保留作為後續局部角花來源 | 不單獨覆蓋現有操作區 |
+| `mucha-divider-left/right.webp` | 狀態區與月份列之間的專用飾帶、班級列與底部導覽端飾 | 專用飾帶沒有按鈕，中央完全淨空 |
 | `mucha-gap-divider.webp` | 彈窗與工具面板的橫向分隔飾帶 | 中央透明、不穿過標題或按鈕 |
-| `mucha-empty-ornament.webp` | 沒有月份、輔導或週計畫資料時的空白區裝飾 | 只在正常排版流中出現 |
-| `nebula-mucha-edge.webp` | Nebula 主內容底層的星花邊框 | 低透明度且由內容卡覆蓋 |
-| `nebula-edge-left/right.webp` | Nebula 頁首、班級列與底部導覽點綴 | 只貼左右邊界 |
+| `mucha-empty-ornament.webp` | Mucha／Nebula 沒有月份、輔導或週計畫資料時的空白區裝飾 | 只在正常排版流中出現 |
+| `nebula-mucha-edge.webp` | Nebula 主內容與月曆燻金邊框 | 只繪製邊緣，不覆蓋日期 |
+| `nebula-edge-left/right.webp` | Nebula 專用飾帶、頁首、班級列與底部導覽點綴 | 維持左右邊界，手機版不再縮成 13px |
 
 `assets/mucha-png/` 保存七張透明 PNG 高畫質原圖；App 平時載入 WebP 版本以降低記憶體與網路負擔。
 
@@ -30,7 +36,7 @@
 
 ## 效能
 
-- 首屏只快取實際使用的 WebP 素材。
+- 實際顯示用 WebP 內嵌於 `index.html`，不依賴部署路徑；Service Worker 不因單張原圖漏傳而安裝失敗。
 - 高畫質 PNG 不列入 Service Worker 預快取，不影響日常啟動。
 - 無新增動畫、Canvas 或持續重繪。
 - 資料格式維持 schema v6，Firebase 規則與資料路徑未變。

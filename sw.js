@@ -1,9 +1,9 @@
 // 教師專用小工具 PWA Service Worker
-// 導覽採 Network First，靜態檔採 Stale While Revalidate。
+// v20.4：強制以網路最新版驗證導覽，避免 iPhone 長期停留在舊 App Shell。
 
 const CACHE_PREFIX = 'hw-tracker-';
-const CACHE_NAME = CACHE_PREFIX + 'v20-2';
-const BUILD_ID = 'limu-teacher-v20-2-20260727';
+const CACHE_NAME = CACHE_PREFIX + 'v20-4';
+const BUILD_ID = 'limu-teacher-v20-4-20260727';
 const PRECACHE_URLS = [
   './index.html',
   './version.json',
@@ -15,41 +15,42 @@ const PRECACHE_URLS = [
   './assets/apple-touch-icon.jpg',
   './assets/gallery-forward.jpg',
   './assets/login-background.jpg',
-  './assets/splash-art.jpg',
-  './assets/mucha-arch.svg',
-  './assets/mucha-frame.svg',
-  './assets/mucha-divider.svg',
-  './assets/mucha-edgework.svg',
-  './assets/signature-blue-iris.webp',
-  './assets/mucha-master-frame.webp',
-  './assets/mucha-card-frame.webp',
-  './assets/mucha-corner.webp',
-  './assets/mucha-gap-divider.webp',
-  './assets/mucha-empty-ornament.webp',
-  './assets/mucha-divider-left.webp',
-  './assets/mucha-divider-right.webp',
-  './assets/nebula-mucha-edge.webp',
-  './assets/nebula-edge-left.webp',
-  './assets/nebula-edge-right.webp'
+  './assets/splash-art.jpg'
 ];
+
+function fetchFresh(url) {
+  return fetch(url, { cache:'no-store' }).then(function(response) {
+    if (!response || !response.ok) throw new Error(url + ' unavailable');
+    return response;
+  });
+}
 
 self.addEventListener('install', function(event) {
   event.waitUntil(
     Promise.all([
-      fetch('./version.json', { cache:'no-store' }).then(function(response) {
-        if (!response.ok) throw new Error('version.json unavailable');
-        return response.json();
-      }),
-      fetch('./index.html', { cache:'no-store' }).then(function(response) {
-        if (!response.ok) throw new Error('index.html unavailable');
-        return response.text();
-      })
+      fetchFresh('./version.json').then(function(response) { return response.json(); }),
+      fetchFresh('./index.html').then(function(response) { return response.text(); }),
+      fetchFresh('./sw.js').then(function(response) { return response.text(); })
     ]).then(function(results) {
-      if (!results[0] || results[0].buildId !== BUILD_ID || results[1].indexOf(BUILD_ID) < 0) {
+      var info = results[0] || {};
+      if (
+        info.buildId !== BUILD_ID ||
+        info.cacheName !== CACHE_NAME ||
+        results[1].indexOf(BUILD_ID) < 0 ||
+        results[2].indexOf(BUILD_ID) < 0
+      ) {
         throw new Error('LIMU deployment files are from different builds');
       }
       return caches.open(CACHE_NAME);
-    }).then(function(cache) { return cache.addAll(PRECACHE_URLS); })
+    }).then(function(cache) {
+      return Promise.all(PRECACHE_URLS.map(function(url) {
+        return fetchFresh(url).then(function(response) {
+          return cache.put(url, response);
+        });
+      }));
+    }).then(function() {
+      return self.skipWaiting();
+    })
   );
 });
 
@@ -70,7 +71,9 @@ self.addEventListener('activate', function(event) {
       return Promise.all(keys.filter(function(key) {
         return key.indexOf(CACHE_PREFIX) === 0 && key !== CACHE_NAME;
       }).map(function(key) { return caches.delete(key); }));
-    }).then(function() { return self.clients.claim(); })
+    }).then(function() {
+      return self.clients.claim();
+    })
   );
 });
 
@@ -81,31 +84,35 @@ self.addEventListener('fetch', function(event) {
   // 第三方服務（Firebase、登入與字型）不寫入 App 快取。
   if (url.origin !== self.location.origin) {
     event.respondWith(fetch(event.request).catch(function() {
-      return new Response('', { status: 503, statusText: 'Offline' });
+      return new Response('', { status:503, statusText:'Offline' });
     }));
     return;
   }
 
-  // HTML 導覽優先取最新版；離線時回到已快取的 App Shell。
+  // 導覽一律繞過 HTTP 快取；伺服器若暫時仍回舊 HTML，改用已驗證的 v20.4 App Shell。
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).then(function(response) {
-        if (response && response.ok) {
-          var verifyCopy = response.clone();
-          var cacheCopy = response.clone();
-          event.waitUntil(verifyCopy.text().then(function(text) {
-            if (text.indexOf(BUILD_ID) < 0) return;
-            return caches.open(CACHE_NAME).then(function(cache) {
-              return cache.put('./index.html', cacheCopy);
+      fetch(event.request, { cache:'no-store' }).then(function(response) {
+        if (!response || !response.ok) throw new Error('navigation unavailable');
+        var cacheCopy = response.clone();
+        return response.clone().text().then(function(text) {
+          if (text.indexOf(BUILD_ID) < 0) {
+            return caches.match('./index.html').then(function(cached) {
+              return cached || response;
             });
-          }).catch(function() {}));
-        }
-        return response;
+          }
+          event.waitUntil(
+            caches.open(CACHE_NAME).then(function(cache) {
+              return cache.put('./index.html', cacheCopy);
+            }).catch(function() {})
+          );
+          return response;
+        });
       }).catch(function() {
         return caches.match('./index.html').then(function(cached) {
           return cached || new Response('App is unavailable offline.', {
-            status: 503,
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+            status:503,
+            headers:{ 'Content-Type':'text/plain; charset=utf-8' }
           });
         });
       })
@@ -113,22 +120,28 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // 版本描述永遠先讀伺服器；離線才使用已驗證過的快取版本。
-  if (url.pathname.endsWith('/version.json')) {
-    event.respondWith(fetch(event.request).catch(function() {
-      return caches.match('./version.json').then(function(cached) {
-        return cached || new Response('{}', { status:503, headers:{'Content-Type':'application/json'} });
+  // 版本檔與 Service Worker 檔永遠先讀網路，供頁面判斷是否有完整新建置。
+  if (url.pathname.endsWith('/version.json') || url.pathname.endsWith('/sw.js')) {
+    event.respondWith(fetch(event.request, { cache:'no-store' }).catch(function() {
+      var fallback = url.pathname.endsWith('/version.json') ? './version.json' : './sw.js';
+      return caches.match(fallback).then(function(cached) {
+        return cached || new Response('{}', {
+          status:503,
+          headers:{ 'Content-Type':'application/json; charset=utf-8' }
+        });
       });
     }));
     return;
   }
 
-  // 同源靜態資源快速回傳快取，並以 waitUntil 保證背景更新完成。
+  // 其餘同源靜態資源採快取優先，背景更新。
   event.respondWith(caches.match(event.request).then(function(cached) {
     var update = fetch(event.request).then(function(response) {
       if (response && response.ok && response.type === 'basic') {
         return caches.open(CACHE_NAME).then(function(cache) {
-          return cache.put(event.request, response.clone()).then(function() { return response; });
+          return cache.put(event.request, response.clone()).then(function() {
+            return response;
+          });
         });
       }
       return response;
@@ -138,7 +151,7 @@ self.addEventListener('fetch', function(event) {
       return cached;
     }
     return update.catch(function() {
-      return new Response('', { status: 503, statusText: 'Offline' });
+      return new Response('', { status:503, statusText:'Offline' });
     });
   }));
 });
