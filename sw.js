@@ -1,11 +1,11 @@
 // 教師專用小工具 PWA Service Worker
-// v20.8：主題圖示雙備援、動態組別表格，並保留 iPhone 可靠換版。
+// v20.9：恢復慕夏／星雲完整裝飾層，四主題各自向量圖示。
 
 const CACHE_PREFIX = 'hw-tracker-';
-const CACHE_NAME = 'hw-tracker-v20-8';
-const BUILD_ID = 'limu-teacher-v20-8-20260727';
+const CACHE_NAME = 'hw-tracker-v20-9';
+const BUILD_ID = 'limu-teacher-v20-9-20260727';
 // 頁面會核對這個完整字面標記；不可改回由兩段字串拼接，否則會再次誤報。
-const DEPLOYMENT_MARKER = 'limu-teacher-v20-8-20260727|hw-tracker-v20-8';
+const DEPLOYMENT_MARKER = 'limu-teacher-v20-9-20260727|hw-tracker-v20-9';
 const PRECACHE_URLS = [
   './index.html',
   './version.json',
@@ -17,7 +17,8 @@ const PRECACHE_URLS = [
   './assets/apple-touch-icon.jpg',
   './assets/gallery-forward.jpg',
   './assets/login-background.jpg',
-  './assets/splash-art.jpg'
+  './assets/splash-art.jpg',
+  './assets/signature-blue-iris.webp'
 ];
 
 function fetchFresh(url) {
@@ -91,7 +92,7 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // 導覽一律繞過 HTTP 快取；伺服器若暫時仍回舊 HTML，改用已驗證的 v20.8 App Shell。
+  // 導覽一律繞過 HTTP 快取；伺服器若暫時仍回舊 HTML，改用已驗證的 v20.9 App Shell。
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request, { cache:'no-store' }).then(function(response) {
