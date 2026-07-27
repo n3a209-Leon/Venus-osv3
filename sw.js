@@ -1,11 +1,13 @@
 // 教師專用小工具 PWA Service Worker
-// v20.12：頁首與月曆卡片共用同一條左右邊界。
+// v20.13：更新時不再先顯示舊版。
 
 const CACHE_PREFIX = 'hw-tracker-';
-const CACHE_NAME = 'hw-tracker-v20-12';
-const BUILD_ID = 'limu-teacher-v20-12-20260727';
+const CACHE_NAME = 'hw-tracker-v20-13';
+const BUILD_ID = 'limu-teacher-v20-13-20260727';
 // 頁面會核對這個完整字面標記；不可改回由兩段字串拼接，否則會再次誤報。
-const DEPLOYMENT_MARKER = 'limu-teacher-v20-12-20260727|hw-tracker-v20-12';
+const DEPLOYMENT_MARKER = 'limu-teacher-v20-13-20260727|hw-tracker-v20-13';
+// 用來判斷「這是一份完整的 App shell」，不限定版本。
+const BUILD_ID_PATTERN = /limu-teacher-v\d+-\d+-\d{8}/;
 const PRECACHE_URLS = [
   './index.html',
   './version.json',
@@ -92,23 +94,30 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // 導覽一律繞過 HTTP 快取；伺服器若暫時仍回舊 HTML，改用已驗證的 v20.9 App Shell。
+  // 導覽一律繞過 HTTP 快取。
+  // v20.13：只要伺服器回的是「完整的 App shell」（任何版本），就直接給使用者。
+  // 舊寫法是比對本 SW 自己的 BUILD_ID，導致伺服器較新時反而回舊快取，
+  // 使用者每次更新都要先看到舊版、再多載入一次才會切換。
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request, { cache:'no-store' }).then(function(response) {
         if (!response || !response.ok) throw new Error('navigation unavailable');
         var cacheCopy = response.clone();
         return response.clone().text().then(function(text) {
-          if (text.indexOf(BUILD_ID) < 0) {
+          if (!BUILD_ID_PATTERN.test(text)) {
+            // 真的不是 App shell（例如伺服器回了錯誤頁或半套檔案）才退回快取。
             return caches.match('./index.html').then(function(cached) {
               return cached || response;
             });
           }
-          event.waitUntil(
-            caches.open(CACHE_NAME).then(function(cache) {
-              return cache.put('./index.html', cacheCopy);
-            }).catch(function() {})
-          );
+          if (text.indexOf(BUILD_ID) >= 0) {
+            // 只有同版才寫進本 SW 的快取；新版交給新的 SW 自己預快取。
+            event.waitUntil(
+              caches.open(CACHE_NAME).then(function(cache) {
+                return cache.put('./index.html', cacheCopy);
+              }).catch(function() {})
+            );
+          }
           return response;
         });
       }).catch(function() {

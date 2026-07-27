@@ -3302,7 +3302,7 @@
             margin:12px auto;
             padding:0 8px;
           }
-          /* v20.12：頁首內距對齊 main，讓標題框／班級列／狀態列／月份列
+          /* v20.13：頁首內距對齊 main，讓標題框／班級列／狀態列／月份列
              與下方月曆卡片共用同一條左右邊界。 */
           .app[data-theme="mucha"] header,
           .app[data-theme="nebula"] header{padding-inline:8px}
@@ -4088,10 +4088,10 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const COUNSEL_PERIODS = ["早自習", "第1節", "第2節", "第3節", "第4節", "午休", "第5節", "第6節", "放學後"];
 const COUNSEL_TYPES = ["學習", "行為", "情緒", "人際", "家庭", "其他"];
 const COUNSEL_FOLLOWUP = ["需追蹤", "已處理", "轉介"];
-const APP_VERSION = "16.0.12";
+const APP_VERSION = "16.0.13";
 const APP_BUILD_DATE = "2026-07-27";
-const APP_BUILD_ID = "limu-teacher-v20-12-20260727";
-const APP_CACHE_NAME = "hw-tracker-v20-12";
+const APP_BUILD_ID = "limu-teacher-v20-13-20260727";
+const APP_CACHE_NAME = "hw-tracker-v20-13";
 window.__LIMU_BUILD__ = Object.freeze({
     appVersion: APP_VERSION,
     buildDate: APP_BUILD_DATE,
@@ -8422,7 +8422,7 @@ function App() {
     const SIGNATURE_IRIS = window.LIMU_ART && window.LIMU_ART.signature
         ? window.LIMU_ART.signature
         : "";
-    const SIGNATURE_IRIS_FILE = "./assets/signature-blue-iris.webp?v=20-12";
+    const SIGNATURE_IRIS_FILE = "./assets/signature-blue-iris.webp?v=20-13";
     const EMPTY_ORNAMENT = window.LIMU_ART && window.LIMU_ART.emptyOrnament
         ? window.LIMU_ART.emptyOrnament
         : "";
@@ -14538,13 +14538,13 @@ setTimeout(function(){
 </script>
 
 <script>
-// ── Service Worker 註冊（v20.12：圖示雙備援＋動態組別表格）──
+// ── Service Worker 註冊（v20.13：圖示雙備援＋動態組別表格）──
 (function() {
   if (!('serviceWorker' in navigator)) return;
   var updateRegistration = null;
   var reloadingForUpdate = false;
-  var SW_BUILD_ID = 'limu-teacher-v20-12-20260727';
-  var SW_CACHE_NAME = 'hw-tracker-v20-12';
+  var SW_BUILD_ID = 'limu-teacher-v20-13-20260727';
+  var SW_CACHE_NAME = 'hw-tracker-v20-13';
   var SW_URL = './sw.js?build=' + encodeURIComponent(SW_BUILD_ID);
   var lastUpdateCheck = 0;
   // v20.11：版本標籤一律由 SW_BUILD_ID 推導，不再硬寫，避免升版時漏改成假訊息。
