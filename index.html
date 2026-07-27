@@ -2512,12 +2512,13 @@
         .app[data-theme="mucha"] header::before{
           content:"";
           position:absolute;
-          inset:0;
+          inset:0 0 auto;
+          height:56px;
           z-index:0;
           background:
-            var(--limu-art-divider-left) left bottom/auto 30px no-repeat,
-            var(--limu-art-divider-right) right bottom/auto 30px no-repeat;
-          opacity:.18;
+            var(--limu-art-divider-left) left top/auto 26px no-repeat,
+            var(--limu-art-divider-right) right top/auto 26px no-repeat;
+          opacity:.10;
           filter:saturate(.88) brightness(1.08);
           pointer-events:none;
         }
@@ -2556,14 +2557,14 @@
         .app[data-theme="mucha"] .class-context-bar::after{
           content:"";
           position:absolute;
-          left:4px;
-          right:4px;
-          bottom:-4px;
-          height:14px;
+          left:5px;
+          right:5px;
+          bottom:0;
+          height:12px;
           background:
-            var(--limu-art-divider-left) left center/auto 12px no-repeat,
-            var(--limu-art-divider-right) right center/auto 12px no-repeat;
-          opacity:.48;
+            var(--limu-art-divider-left) left bottom/auto 11px no-repeat,
+            var(--limu-art-divider-right) right bottom/auto 11px no-repeat;
+          opacity:.34;
           pointer-events:none;
         }
         .app[data-theme="mucha"] .class-context-main{color:var(--mucha-green)}
@@ -2847,12 +2848,147 @@
           pointer-events:none;
           filter:drop-shadow(0 1px 2px rgba(74,48,24,.18));
         }
+        .theme-signature-iris-slot,
+        .theme-toggle-iris-slot{
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          flex:0 0 auto;
+          line-height:1;
+        }
+        .theme-signature-iris-slot{
+          width:30px;
+          height:30px;
+        }
+        .theme-toggle-iris-slot{
+          width:28px;
+          height:28px;
+        }
         .theme-toggle-iris{
-          width:22px;
-          height:22px;
+          display:block;
+          width:28px;
+          height:28px;
           object-fit:contain;
           pointer-events:none;
+          filter:drop-shadow(0 1px 2px rgba(28,20,10,.32));
+        }
+        .theme-iris-fallback{
+          display:none;
+          font-size:22px;
+          line-height:1;
+        }
+        /* v20.9：四主題共用的向量圖示欄位，尺寸與鳶尾圖示對齊。 */
+        .theme-glyph-slot{
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          flex:0 0 auto;
+          width:30px;
+          height:30px;
+          line-height:1;
+        }
+        .theme-glyph-slot.compact{width:28px;height:28px}
+        .theme-glyph{
+          display:block;
+          pointer-events:none;
           filter:drop-shadow(0 1px 2px rgba(28,20,10,.28));
+        }
+        /* v20.11：LIMU 標題列本身變成一個完整的裝飾框，
+           標題、版號與所有按鈕都包在框內；花頭移到整列的最左與最右端。
+           中央那條只留連接用的細線，避免一列出現四朵花。 */
+        .hi-row1{position:relative}
+        .app[data-theme="mucha"] .hi-row1,
+        .app[data-theme="nebula"] .hi-row1,
+        .app[data-theme="nerv"] .hi-row1{
+          padding:3px 32px;
+          border-radius:16px;
+          isolation:isolate;
+        }
+        .app[data-theme="mucha"] .hi-row1>*,
+        .app[data-theme="nebula"] .hi-row1>*,
+        .app[data-theme="nerv"] .hi-row1>*{position:relative;z-index:1}
+        .app[data-theme="mucha"] .hi-row1::before,
+        .app[data-theme="nebula"] .hi-row1::before,
+        .app[data-theme="nerv"] .hi-row1::before{
+          content:"";
+          position:absolute;
+          inset:0;
+          z-index:0;
+          border-radius:inherit;
+          pointer-events:none;
+        }
+        .app[data-theme="mucha"] .hi-row1::after,
+        .app[data-theme="nebula"] .hi-row1::after{
+          content:"";
+          position:absolute;
+          inset:0;
+          z-index:0;
+          pointer-events:none;
+          background-repeat:no-repeat;
+          background-position:left center,right center;
+          background-size:auto 26px,auto 26px;
+        }
+        .app[data-theme="mucha"] .hi-row1::before{
+          border:1px solid rgba(226,201,135,.40);
+          background:linear-gradient(180deg,rgba(244,235,221,.09),rgba(244,235,221,.02));
+          box-shadow:inset 0 0 0 1px rgba(255,248,228,.07);
+        }
+        .app[data-theme="mucha"] .hi-row1::after{
+          background-image:var(--limu-art-divider-left),var(--limu-art-divider-right);
+          opacity:.95;
+          filter:saturate(1.04) drop-shadow(0 1px 2px rgba(28,22,10,.32));
+        }
+        .app[data-theme="nebula"] .hi-row1::before{
+          border:1px solid rgba(215,186,129,.26);
+          background:linear-gradient(180deg,rgba(150,120,255,.10),rgba(120,90,220,.03));
+          box-shadow:inset 0 0 0 1px rgba(215,186,129,.06);
+        }
+        .app[data-theme="nebula"] .hi-row1::after{
+          background-image:var(--limu-art-nebula-left),var(--limu-art-nebula-right);
+          opacity:.92;
+          filter:saturate(1.12) brightness(1.12) drop-shadow(0 0 6px rgba(110,79,211,.38));
+        }
+        .app[data-theme="nerv"] .hi-row1{padding:3px 20px;border-radius:2px}
+        .app[data-theme="nerv"] .hi-row1::before{
+          border:1px solid rgba(255,102,0,.42);
+          border-radius:0;
+          background:rgba(255,102,0,.05);
+          clip-path:polygon(10px 0%,calc(100% - 10px) 0%,100% 50%,calc(100% - 10px) 100%,10px 100%,0% 50%);
+        }
+        /* 中央連接線：把左右花頭串起來，不再自己帶花。 */
+        .hi-flourish{
+          flex:1 1 auto;
+          min-width:0;
+          align-self:center;
+          height:14px;
+          margin:0 6px;
+          pointer-events:none;
+          user-select:none;
+          background:
+            linear-gradient(90deg,transparent 4%,rgba(255,255,255,.20) 30%,rgba(255,255,255,.10) 50%,rgba(255,255,255,.20) 70%,transparent 96%) center/94% 1px no-repeat;
+        }
+        .app[data-theme="mucha"] .hi-flourish{
+          background:
+            linear-gradient(90deg,transparent 2%,rgba(232,211,160,.58) 26%,rgba(232,211,160,.28) 50%,rgba(232,211,160,.58) 74%,transparent 98%) center/96% 1px no-repeat;
+        }
+        .app[data-theme="nebula"] .hi-flourish{
+          background:
+            radial-gradient(circle,rgba(227,199,133,.72) 0 1.6px,transparent 2.6px) center/7px 7px no-repeat,
+            linear-gradient(90deg,transparent 2%,rgba(213,181,122,.46) 26%,rgba(132,103,223,.36) 50%,rgba(213,181,122,.46) 74%,transparent 98%) center/96% 1px no-repeat;
+        }
+        .app[data-theme="nerv"] .hi-flourish{
+          height:9px;
+          background:
+            repeating-linear-gradient(90deg,rgba(255,102,0,.55) 0 6px,transparent 6px 11px) center/100% 1px no-repeat;
+          opacity:.7;
+        }
+        @media(max-width:640px){
+          .app[data-theme="mucha"] .hi-row1,
+          .app[data-theme="nebula"] .hi-row1{padding:2px 25px;border-radius:14px}
+          .app[data-theme="nerv"] .hi-row1{padding:2px 16px}
+          .app[data-theme="mucha"] .hi-row1::after,
+          .app[data-theme="nebula"] .hi-row1::after{background-size:auto 22px,auto 22px}
+          .hi-flourish{margin:0 4px}
         }
 
         /* 星雲主題保留宇宙主視覺，但讓燻金藍紫鳶尾在專用邊界層清楚可見。 */
@@ -2877,12 +3013,12 @@
           position:absolute;
           left:6px;
           right:6px;
-          bottom:0;
-          height:46px;
+          top:0;
+          height:52px;
           background:
-            var(--limu-art-nebula-left) left bottom/auto 43px no-repeat,
-            var(--limu-art-nebula-right) right bottom/auto 43px no-repeat;
-          opacity:.48;
+            var(--limu-art-nebula-left) left top/auto 40px no-repeat,
+            var(--limu-art-nebula-right) right top/auto 40px no-repeat;
+          opacity:.22;
           mix-blend-mode:screen;
           pointer-events:none;
         }
@@ -2898,26 +3034,26 @@
           position:absolute;
           left:5px;
           right:5px;
-          bottom:-1px;
-          height:18px;
+          bottom:0;
+          height:13px;
           z-index:0;
           background:
-            var(--limu-art-nebula-left) left center/auto 17px no-repeat,
-            var(--limu-art-nebula-right) right center/auto 17px no-repeat;
-          opacity:.46;
+            var(--limu-art-nebula-left) left bottom/auto 12px no-repeat,
+            var(--limu-art-nebula-right) right bottom/auto 12px no-repeat;
+          opacity:.30;
           pointer-events:none;
         }
         .app[data-theme="nebula"] .class-context-bar::after{
           content:"";
           position:absolute;
-          left:8px;
-          right:8px;
-          bottom:-3px;
-          height:18px;
+          left:6px;
+          right:6px;
+          bottom:0;
+          height:13px;
           background:
-            var(--limu-art-nebula-left) left center/auto 17px no-repeat,
-            var(--limu-art-nebula-right) right center/auto 17px no-repeat;
-          opacity:.44;
+            var(--limu-art-nebula-left) left bottom/auto 12px no-repeat,
+            var(--limu-art-nebula-right) right bottom/auto 12px no-repeat;
+          opacity:.32;
           pointer-events:none;
         }
         .app[data-theme="nebula"] main{
@@ -3008,13 +3144,13 @@
           position:absolute;
           left:5px;
           right:5px;
-          bottom:-1px;
-          height:14px;
+          bottom:0;
+          height:12px;
           z-index:0;
           background:
-            var(--limu-art-divider-left) left center/auto 12px no-repeat,
-            var(--limu-art-divider-right) right center/auto 12px no-repeat;
-          opacity:.30;
+            var(--limu-art-divider-left) left bottom/auto 11px no-repeat,
+            var(--limu-art-divider-right) right bottom/auto 11px no-repeat;
+          opacity:.26;
           pointer-events:none;
         }
         @media(max-width:640px){
@@ -3092,48 +3228,17 @@
           .class-locator-metrics{gap:5px}
         }
 
-        /* ══ v20.5：回歸 v19 緊湊結構，只在既有外緣保留慕夏花邊 ══════
-           裝飾不建立新排版列、不占高度、不複製到每張卡片，也不接收觸控。 */
-        .theme-ornament-band,
-        .mucha-panel-divider,
-        .mucha-empty-art{
-          display:none!important;
-          width:0!important;
-          height:0!important;
-          min-height:0!important;
-          margin:0!important;
-          padding:0!important;
-          overflow:hidden!important;
-        }
+        /* ══ v20.9：恢復完整裝飾層 ═══════════════════════════════════
+           v20.5 曾用 !important 全面關閉裝飾，導致慕夏／星雲主題只剩外框。
+           此處改為「保留緊湊排版，但不再封殺裝飾」：
+           所有花邊都是 absolute 疊層或 ::after，除飾帶列外不佔用版面高度。 */
         .header-status-stack{
           max-width:960px;
           margin:0 auto;
-          padding:0;
+          padding:2px 8px;
           display:grid;
-          gap:0;
-          border:0!important;
-          border-radius:0!important;
-          background:none!important;
+          gap:3px;
         }
-        .header-status-stack::after,
-        .app[data-theme="mucha"] header::before,
-        .app[data-theme="nebula"] header::after,
-        .app[data-theme="mucha"] .class-context-bar::after,
-        .app[data-theme="nebula"] .class-context-bar::after,
-        .app[data-theme="mucha"] .header-status-stack::after,
-        .app[data-theme="nebula"] .header-status-stack::after,
-        .app[data-theme="mucha"] .calendar::after,
-        .app[data-theme="nebula"] .calendar::after,
-        .app[data-theme="mucha"] .month-summary::after,
-        .app[data-theme="mucha"] .class-locator-hero::after,
-        .app[data-theme="mucha"] .mobile-dock::before,
-        .app[data-theme="nebula"] .mobile-dock::before{
-          content:none!important;
-          display:none!important;
-          background:none!important;
-          border:0!important;
-        }
-        .app[data-theme="nebula"] .month-label::after{content:none!important}
         .app[data-theme="mucha"] main,
         .app[data-theme="nebula"] main{
           max-width:960px;
@@ -3195,15 +3300,7 @@
         }
         .app[data-theme="mucha"] .mucha-empty-state,
         .app[data-theme="nebula"] .mucha-empty-state{
-          min-height:0;
-          display:block;
-          padding:18px 16px;
           text-align:center;
-        }
-        body.limu-theme-mucha .v18-sheet-panel::before,
-        body.limu-theme-mucha .theme-menu-panel::before{
-          content:none!important;
-          display:none!important;
         }
         @media(max-width:640px){
           .app[data-theme="mucha"] main,
@@ -3218,6 +3315,44 @@
             opacity:.34;
           }
           .app[data-theme="nebula"] main::before{opacity:.25}
+        }
+
+        /* ══ v20.8：部署圖示雙備援＋日表依設定組數精準排版 ═════════════
+           不新增裝飾空間；5/6/7 組都只使用既有表格寬度。 */
+        .theme-toggle-iris,
+        .theme-signature-flower{
+          visibility:visible!important;
+          opacity:1!important;
+          image-rendering:auto;
+        }
+        .app[data-theme="mucha"] main::before{
+          opacity:.58;
+        }
+        .homework-group-table{
+          table-layout:fixed;
+          width:100%;
+        }
+        .homework-group-table .th-hw{width:80px}
+        .homework-group-table .th-group{width:auto}
+        .homework-group-table .gc{min-width:0}
+        .homework-group-table.group-count-6 .ml,
+        .homework-group-table.group-count-7 .ml{
+          grid-template-columns:1fr;
+        }
+        @media(max-width:640px){
+          .day-action-bar{
+            /* 略為向兩側延伸，讓金色框線與下方日表形成同一條視覺邊界。 */
+            margin-left:6px;
+            margin-right:6px;
+          }
+          .homework-group-table .th-hw{width:74px}
+          .homework-group-table.group-count-6 .th-hw{width:68px}
+          .homework-group-table.group-count-7 .th-hw{width:62px}
+          .homework-group-table.group-count-6 .badge{width:30px;height:30px}
+          .homework-group-table.group-count-7 .badge{width:28px;height:28px;font-size:15px}
+          .homework-group-table.group-count-6 .gc,
+          .homework-group-table.group-count-7 .gc{padding-left:1px;padding-right:1px}
+          .app[data-theme="mucha"] main::before{opacity:.54}
         }
 </style>
 <script id="limu-inline-art-bundle">
@@ -3955,10 +4090,10 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const COUNSEL_PERIODS = ["早自習", "第1節", "第2節", "第3節", "第4節", "午休", "第5節", "第6節", "放學後"];
 const COUNSEL_TYPES = ["學習", "行為", "情緒", "人際", "家庭", "其他"];
 const COUNSEL_FOLLOWUP = ["需追蹤", "已處理", "轉介"];
-const APP_VERSION = "16.0.5";
+const APP_VERSION = "16.0.11";
 const APP_BUILD_DATE = "2026-07-27";
-const APP_BUILD_ID = "limu-teacher-v20-5-20260727";
-const APP_CACHE_NAME = "hw-tracker-v20-5";
+const APP_BUILD_ID = "limu-teacher-v20-11-20260727";
+const APP_CACHE_NAME = "hw-tracker-v20-11";
 window.__LIMU_BUILD__ = Object.freeze({
     appVersion: APP_VERSION,
     buildDate: APP_BUILD_DATE,
@@ -7236,12 +7371,11 @@ function App() {
     });
     function withRosterGroups(source) {
         var list = Array.isArray(source) ? source : [];
-        var size = Math.max(0, parseInt(classSize, 10) || 0);
-        if (!size) return list;
-        var used = new Set(list.reduce(function(acc, g) { return acc.concat(g.members || []); }, []));
-        var missing = [];
-        for (var seat = 1; seat <= size; seat++) if (!used.has(seat)) missing.push(seat);
-        return missing.length ? list.concat([{ id: "ungrouped", label: "未分組", members: missing, leader: 0, secretary: 0, derived: true }]) : list;
+        // 日表只顯示「設定中實際存在」的組別。未分組座號仍由設定頁提示，
+        // 不再自行補出 ungrouped 欄，避免 5/6/7 組被多擠出一個英文欄位。
+        return list.filter(function(group) {
+            return group && !group.derived && String(group.id) !== "ungrouped";
+        });
     }
     // 給定日期，回傳該日期適用的組別版本（依 effectiveDate 由新到舊找第一個 <= dateStr 的版本）
     function getGroupsForDate(dateStr) {
@@ -8287,17 +8421,95 @@ function App() {
         return [];
     } });
     const [showHistory, setShowHistory] = useState(false);
+    const SIGNATURE_IRIS = window.LIMU_ART && window.LIMU_ART.signature
+        ? window.LIMU_ART.signature
+        : "";
+    const SIGNATURE_IRIS_FILE = "./assets/signature-blue-iris.webp?v=20-11";
+    const EMPTY_ORNAMENT = window.LIMU_ART && window.LIMU_ART.emptyOrnament
+        ? window.LIMU_ART.emptyOrnament
+        : "";
+    // v20.9：四個主題各自的向量圖示（純 inline SVG，不增加任何檔案體積）。
+    function renderThemeGlyph(id, compact) {
+        var size = compact ? 22 : 26;
+        var svgProps = { className:"theme-glyph", width:size, height:size, viewBox:"0 0 32 32", fill:"none", "aria-hidden":"true", focusable:"false" };
+        if (id === "nerv") {
+            return React.createElement("svg", svgProps,
+                React.createElement("path", { d:"M16 2.5 28 9.25v13.5L16 29.5 4 22.75V9.25z", stroke:"#ff6a1f", strokeWidth:"2", strokeLinejoin:"round" }),
+                React.createElement("path", { d:"M16 9.5 22.5 21h-13z", fill:"#ff6a1f", fillOpacity:".85" }),
+                React.createElement("circle", { cx:"16", cy:"18.2", r:"1.7", fill:"#150500" })
+            );
+        }
+        if (id === "nebula") {
+            return React.createElement("svg", svgProps,
+                React.createElement("circle", { cx:"16", cy:"16", r:"13", stroke:"#9d86ff", strokeWidth:"1.6", strokeOpacity:".55" }),
+                React.createElement("path", { d:"M25 16c0 5-4 9-9 9-3.6 0-6.4-2-6.4-4.6 0-2.2 1.8-3.8 4.2-3.8 1.9 0 3.3 1.1 3.3 2.6 0 1.2-.9 2-2 2", stroke:"#c8b0ff", strokeWidth:"2", strokeLinecap:"round" }),
+                React.createElement("circle", { cx:"9.6", cy:"9.6", r:"1.6", fill:"#ffe9a8" }),
+                React.createElement("circle", { cx:"23", cy:"24", r:"1.1", fill:"#ffe9a8", fillOpacity:".8" })
+            );
+        }
+        return React.createElement("svg", svgProps,
+            React.createElement("circle", { cx:"16", cy:"16", r:"6.4", fill:"#2f78ae" }),
+            React.createElement("g", { stroke:"#2f78ae", strokeWidth:"2.2", strokeLinecap:"round" },
+                React.createElement("path", { d:"M16 2.4v3.8" }),
+                React.createElement("path", { d:"M16 25.8v3.8" }),
+                React.createElement("path", { d:"M2.4 16h3.8" }),
+                React.createElement("path", { d:"M25.8 16h3.8" }),
+                React.createElement("path", { d:"M6.4 6.4 9 9" }),
+                React.createElement("path", { d:"M23 23l2.6 2.6" }),
+                React.createElement("path", { d:"M25.6 6.4 23 9" }),
+                React.createElement("path", { d:"M9 23l-2.6 2.6" })
+            )
+        );
+    }
+    function renderThemeIcon(id, compact) {
+        if (id === "mucha") return renderSignatureIrisIcon(compact);
+        return React.createElement("span", { className:"theme-glyph-slot" + (compact ? " compact" : ""), "aria-hidden":"true" },
+            renderThemeGlyph(id, compact));
+    }
+    function renderSignatureIrisIcon(compact) {
+        var primaryIris = SIGNATURE_IRIS_FILE || SIGNATURE_IRIS;
+        if (!primaryIris) {
+            return React.createElement("span", { "aria-hidden":"true", style:{fontSize:compact ? 20 : 24,lineHeight:1} }, "❧");
+        }
+        return React.createElement("span", {
+                className:compact ? "theme-toggle-iris-slot" : "theme-signature-iris-slot",
+                "aria-hidden":"true"
+            },
+            React.createElement("img", {
+                className:compact ? "theme-toggle-iris" : "theme-signature-flower",
+                src:primaryIris,
+                alt:"",
+                draggable:false,
+                onError:function(event) {
+                    var image = event.currentTarget;
+                    if (!image.dataset.inlineFallback && SIGNATURE_IRIS) {
+                        image.dataset.inlineFallback = "1";
+                        image.src = SIGNATURE_IRIS;
+                        return;
+                    }
+                    image.style.display = "none";
+                    var fallback = image.nextElementSibling;
+                    if (fallback) fallback.style.display = "inline";
+                }
+            }),
+            React.createElement("span", { className:"theme-iris-fallback" }, "❧")
+        );
+    }
     const THEMES = [
         { id: 'default', icon: '☀️', name: '一般模式', desc: '清爽藍白配色' },
         { id: 'nebula', icon: '🌌', name: '星雲模式', desc: '天馬座星雲・深邃宇宙' },
         { id: 'nerv', icon: '⬡', name: 'NERV模式', desc: '新世紀福音戰士' },
-        { id: 'mucha', icon: '❧', name: '慕夏・藍紫鳶尾', desc: '你的代表花・智慧、信念與勇氣' },
+        { id: 'mucha', icon: '❧', image: SIGNATURE_IRIS_FILE, name: '慕夏・藍紫鳶尾', desc: '你的代表花・智慧、信念與勇氣' },
     ];
     const isNerv = theme === "nerv";
     const isNebula = theme === "nebula";
     const isMucha = theme === "mucha";
     function renderMuchaEmpty(text, className) {
+        var showArt = (isMucha || isNebula) && !!EMPTY_ORNAMENT;
         return React.createElement("div", { className:(className || "no-data") + " mucha-empty-state" },
+            showArt && React.createElement("img", {
+                className:"mucha-empty-art", src:EMPTY_ORNAMENT, alt:"", draggable:false
+            }),
             React.createElement("span", null, text)
         );
     }
@@ -11199,13 +11411,13 @@ function App() {
                         }
                     }, isNerv ? "NERV" : "LIMU"),
                     React.createElement("span", { style:{ fontSize:11, fontWeight:600, color: isNerv ? "rgba(255,102,0,.75)" : "rgba(255,255,255,.5)", marginLeft:8, alignSelf:"center", letterSpacing:0, whiteSpace:"nowrap" } }, "v" + APP_VERSION),
-                    React.createElement("div", { style:{ flex:1 } }),
+                    React.createElement("div", { className:"hi-flourish", "aria-hidden":"true" }),
                     React.createElement("button", { className:"theme-btn header-quick-btn", onClick:openTodayWorkspace, title:"今日工作台", 'aria-label':"開啟今日工作台", style:{fontSize:14,width:32,height:32,padding:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,193,7,.24)"} }, isNerv ? "TOD" : "🏠"),
                     React.createElement("button", { className:"theme-btn header-quick-btn", onClick:function(){setShowGlobalSearch(true);}, title:"全域搜尋", 'aria-label':"開啟全域搜尋", style:{fontSize:14,width:32,height:32,padding:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(126,87,194,.28)"} }, isNerv ? "SRC" : "🔎"),
                     // 輔導紀錄
                     React.createElement("button", { className: "theme-btn header-quick-btn", onClick: function() { setGrCenter(true); setGrTab('recent'); setGrFilter('7'); setGrSearch(''); }, title: "輔導紀錄中心", 'aria-label':"開啟輔導紀錄中心", style: { background: grRecords.length > 0 ? "rgba(156,39,176,.35)" : "rgba(255,255,255,.15)", fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, isNerv ? "▣" : "📋"),
                     // 主題切換
-                    React.createElement("button", { className: "theme-btn", onClick: handleThemeToggle, 'aria-label':"切換顯示主題", style: { background: theme === 'nerv' ? 'rgba(255,102,0,.2)' : theme === 'nebula' ? 'rgba(150,100,255,.2)' : theme === 'mucha' ? 'rgba(210,179,109,.22)' : 'rgba(255,255,255,.15)', fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, theme === 'nerv' ? '⬡' : theme === 'nebula' ? '🌌' : theme === 'mucha' ? '❧' : '☀️'),
+                    React.createElement("button", { className: "theme-btn", onClick: handleThemeToggle, 'aria-label':"切換顯示主題", style: { background: theme === 'nerv' ? 'rgba(255,102,0,.2)' : theme === 'nebula' ? 'rgba(150,100,255,.2)' : theme === 'mucha' ? 'rgba(210,179,109,.22)' : 'rgba(255,255,255,.15)', fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, renderThemeIcon(theme, true)),
                     // 齒輪選單
                     React.createElement("button", { className: "theme-btn", onClick: function() { setShowGearMenu(true); }, title: "選單", 'aria-label':"開啟功能選單", style: { fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, "⚙️")
                 ),
@@ -11531,8 +11743,7 @@ function App() {
                                 absentCount,
                                 " \u4EBA"))));
                 }),
-                monthRecordEntries.length === 0 && (React.createElement("div", { className: "no-data mucha-empty-state" },
-                    React.createElement("span", null, isNerv ? "// NO MISSION DATA THIS MONTH //" : "本月尚無紀錄，點選日期開始登記"))),
+                monthRecordEntries.length === 0 && renderMuchaEmpty(isNerv ? "// NO MISSION DATA THIS MONTH //" : "本月尚無紀錄，點選日期開始登記"),
                 React.createElement("div", { style: { margin: "8px 0 4px" } },
                     React.createElement("button", {
                         className: "excel-btn",
@@ -11697,16 +11908,15 @@ function App() {
                 )
             ), document.body),
             React.createElement("div", { className: "table-wrapper hw-table-wrap" },
-                React.createElement("table", null,
+                React.createElement("table", { className:"homework-group-table group-count-" + Math.min(dayGroups.length, 7) },
                     React.createElement("thead", null,
                         React.createElement("tr", null,
-                            React.createElement("th", { className: "th-hw" }, isNerv ? "◈ MISSION" : "作業"),
-                            dayGroups.map(g => React.createElement("th", { key: g.id },
+                            React.createElement("th", { className: "th-hw", "aria-label":"作業名稱" }),
+                            dayGroups.map((g, groupIndex) => React.createElement("th", { key: g.id, className:"th-group" },
                                 React.createElement("span", { className: "gl" }, isNerv
                                     ? React.createElement("span", { className: "nerv-unit-label" },
-                                        React.createElement("span", { className: "nerv-unit-kanji" }, nervUnit(g.id)))
-                                    : String(g.id)))),
-                            React.createElement("th", { className: "th-d" }))),
+                                        React.createElement("span", { className: "nerv-unit-kanji" }, nervUnit(groupIndex + 1)))
+                                    : String(groupIndex + 1)))))),
                     React.createElement("tbody", null,
                         dayRows.map((row, ri) => {
                             var isDual = row.hwName && Array.from(DUAL_HW).some(function(k){ return row.hwName.startsWith(k); });
@@ -11780,8 +11990,7 @@ function App() {
                                                 s === "untouched" && React.createElement("span", { className: "badge ub" }, "−"),
                                                 s === "partial" && ms.length > 0 && React.createElement("div", { className: "ml" }, ms.map(n => React.createElement("span", { key: n, className: "mn" }, n)))
                                             );
-                                        }),
-                                        React.createElement("td", { style:{width:0,padding:0}, rowSpan: 2 })
+                                        })
                                     ),
                                     React.createElement("tr", {
                                         className: isDualDeleting ? "hw-row-deleting" : "hw-row-normal",
@@ -11873,8 +12082,7 @@ function App() {
                                             s === "untouched" && row.hwName && React.createElement("span", { className: "badge ub" }, "\u2212"),
                                             ex.length > 0 && (React.createElement("div", { className: "ml" }, ex.map(n => React.createElement("span", { key: n, className: "mn mn-exempt" }, n)))),
                                             s === "partial" && ms.length > 0 && (React.createElement("div", { className: "ml" }, ms.map(n => React.createElement("span", { key: n, className: "mn" }, n))))));
-                                    }),
-                                    React.createElement("td", { style:{width:0,padding:0} })
+                                    })
                                 )
                             );
                         }),
@@ -11882,7 +12090,7 @@ function App() {
                                 // 直接開 hwpicker，ri 設為 -1（新增模式）
                                 hwPickerOpen(-1);
                             } },
-                            React.createElement("td", { colSpan: 7 },
+                            React.createElement("td", { colSpan: dayGroups.length + 1 },
                                 isNerv ? "[ ADD MISSION LOG ]" : "➕ 新增功課"))))),
             React.createElement("div", { className: "slip-panel" },
                 React.createElement("div", { className: "slip-header" },
@@ -13246,9 +13454,7 @@ function App() {
                 React.createElement("p", { style: { textAlign: 'center', fontSize: 12, fontWeight: 700, color: theme === 'nerv' ? 'rgba(255,102,0,.5)' : theme === 'nebula' ? 'rgba(150,120,255,.5)' : theme === 'mucha' ? '#7a5a2d' : '#aab8cc', marginBottom: 5, letterSpacing: 2 } }, "\u9078\u64C7\u4E3B\u984C"),
                 React.createElement("div", { className:"mucha-panel-divider", "aria-hidden":"true" }),
                 THEMES.map((t, i) => (React.createElement("button", { key: t.id, onClick: () => setThemeAndSave(t.id), style: { display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '16px 24px', background: theme === t.id ? (theme === 'nerv' ? 'rgba(255,102,0,.15)' : theme === 'nebula' ? 'rgba(150,100,255,.15)' : theme === 'mucha' ? 'rgba(117,131,107,.13)' : '#f0f4ff') : 'transparent', border: 'none', borderTop: i > 0 ? '1px solid ' + (theme === 'nerv' ? 'rgba(255,102,0,.1)' : theme === 'nebula' ? 'rgba(150,100,255,.1)' : theme === 'mucha' ? 'rgba(139,99,47,.16)' : 'rgba(0,0,0,.06)') : 'none', cursor: 'pointer', textAlign: 'left', color: theme === 'nerv' ? '#ff8844' : theme === 'nebula' ? '#c8b0ff' : theme === 'mucha' ? '#39312c' : '#1e3a5f', fontFamily: theme === 'nerv' ? 'Share Tech Mono,monospace' : 'inherit' } },
-                    t.image
-                        ? React.createElement("img", { className:"theme-signature-flower", src:t.image, alt:"", "aria-hidden":"true", draggable:false })
-                        : React.createElement("span", { style: { fontSize: 24 } }, t.icon),
+                    renderThemeIcon(t.id, false),
                     React.createElement("div", null,
                         React.createElement("div", { style: { fontSize: 15, fontWeight: 700 } }, t.name),
                         React.createElement("div", { style: { fontSize: 11, opacity: .6, marginTop: 2 } }, t.desc)),
@@ -14334,16 +14540,22 @@ setTimeout(function(){
 </script>
 
 <script>
-// ── Service Worker 註冊（v20.5：iPhone 可靠換版）──
+// ── Service Worker 註冊（v20.11：圖示雙備援＋動態組別表格）──
 (function() {
   if (!('serviceWorker' in navigator)) return;
   var updateRegistration = null;
   var reloadingForUpdate = false;
-  var SW_BUILD_ID = 'limu-teacher-v20-5-20260727';
-  var SW_CACHE_NAME = 'hw-tracker-v20-5';
+  var SW_BUILD_ID = 'limu-teacher-v20-11-20260727';
+  var SW_CACHE_NAME = 'hw-tracker-v20-11';
   var SW_URL = './sw.js?build=' + encodeURIComponent(SW_BUILD_ID);
   var lastUpdateCheck = 0;
+  // v20.11：版本標籤一律由 SW_BUILD_ID 推導，不再硬寫，避免升版時漏改成假訊息。
+  var SW_LABEL = (function() {
+    var m = /limu-teacher-v(\d+)-(\d+)-/.exec(SW_BUILD_ID);
+    return m ? ('v' + m[1] + '.' + m[2]) : SW_BUILD_ID;
+  })();
 
+  function appVersionLabel() { return (window.__LIMU_BUILD__ && window.__LIMU_BUILD__.appVersion) || ''; }
   function currentBuildId() { return (window.__LIMU_BUILD__ && window.__LIMU_BUILD__.buildId) || ''; }
   function currentCacheName() { return (window.__LIMU_BUILD__ && window.__LIMU_BUILD__.cacheName) || ''; }
 
@@ -14379,7 +14591,7 @@ setTimeout(function(){
       }
       var textNode = document.getElementById('limu-update-text');
       var buttonNode = document.getElementById('limu-update-button');
-      textNode.textContent = message || '📦 App 16.0.5 已下載完成';
+      textNode.textContent = message || '📦 App ' + appVersionLabel() + ' 已下載完成';
       buttonNode.textContent = mode === 'mismatch' ? '重新檢查' : mode === 'switching' ? '切換中…' : '立即更新';
       buttonNode.disabled = mode === 'switching';
       buttonNode.setAttribute('aria-label', mode === 'mismatch' ? '重新檢查部署版本' : '啟用 App 新版本');
@@ -14434,7 +14646,7 @@ setTimeout(function(){
         swText.indexOf(info.cacheName) >= 0
       );
       if (!completeServerBuild) {
-        showUpdateBar(reg, '⚠️ 網站上的部署檔案版本不一致，請重新上傳完整 v20.5', 'mismatch');
+        showUpdateBar(reg, '⚠️ 網站上的部署檔案版本不一致，請重新上傳完整 ' + SW_LABEL, 'mismatch');
         return;
       }
       if (info.buildId !== myBuild || info.cacheName !== myCache) {
@@ -14445,7 +14657,7 @@ setTimeout(function(){
         return;
       }
       if (myBuild !== SW_BUILD_ID || myCache !== SW_CACHE_NAME) {
-        showUpdateBar(reg, '⚠️ 目前頁面不是完整 App 16.0.5，請重新載入', 'mismatch');
+        showUpdateBar(reg, '⚠️ 目前頁面不是完整 App ' + appVersionLabel() + '，請重新載入', 'mismatch');
       }
     }).catch(function(){ /* 離線時不顯示混版警告 */ });
 
@@ -14479,7 +14691,7 @@ setTimeout(function(){
       try { window._writeLog('step', 'SW registered, scope: ' + reg.scope); } catch(e) {}
 
       if (reg.waiting) {
-        showUpdateBar(reg, '📦 App 16.0.5 已下載完成', 'switching');
+        showUpdateBar(reg, '📦 App ' + appVersionLabel() + ' 已下載完成', 'switching');
         reg.waiting.postMessage({ type:'SKIP_WAITING' });
       }
 
@@ -14488,10 +14700,10 @@ setTimeout(function(){
         if (!newWorker) return;
         newWorker.addEventListener('statechange', function() {
           if (newWorker.state === 'installed') {
-            showUpdateBar(reg, '📦 App 16.0.5 已下載完成，正在切換', 'switching');
+            showUpdateBar(reg, '📦 App ' + appVersionLabel() + ' 已下載完成，正在切換', 'switching');
             newWorker.postMessage({ type:'SKIP_WAITING' });
           } else if (newWorker.state === 'redundant') {
-            showUpdateBar(reg, '⚠️ 更新檔安裝失敗，請確認已上傳完整 v20.5', 'mismatch');
+            showUpdateBar(reg, '⚠️ 更新檔安裝失敗，請確認已上傳完整 ' + SW_LABEL, 'mismatch');
           }
         });
       });
