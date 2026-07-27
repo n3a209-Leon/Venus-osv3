@@ -6,14 +6,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- status-bar-style moved below theme-color -->
 <meta name="apple-mobile-web-app-title" content="作業記錄">
-<meta name="theme-color" content="#1e3a5f">
+<meta name="theme-color" content="#163552">
 <meta name="description" content="LIMU 教師專用小工具：作業、出勤、輔導紀錄與學年封存">
 <meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <!-- apple-touch-icon injected by JS -->
 <title>LIMU · Venus OS</title>
 <link rel="manifest" href="./manifest.webmanifest">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
 <style>
 
 
@@ -2183,11 +2182,628 @@
         @media(prefers-reduced-motion:reduce){
           *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
         }
+
+        /* ══ v19：固定班級定位、視覺精緻化與繪製效能 ════════════════ */
+        :root{
+          --limu-ink:#18324f;
+          --limu-muted:#667b91;
+          --limu-line:rgba(38,76,116,.12);
+          --limu-surface:#ffffff;
+          --limu-surface-soft:#f7f9fc;
+          --limu-accent:#2b6da8;
+          --limu-success:#23845d;
+          --limu-warning:#b56a00;
+          --limu-danger:#c43b4b;
+          --limu-shadow:0 10px 30px rgba(35,65,98,.09),0 2px 8px rgba(35,65,98,.05);
+        }
+        html.performance-paused *,html.performance-paused *::before,html.performance-paused *::after{
+          animation-play-state:paused!important;
+        }
+        .app[data-theme="default"]{
+          color:var(--limu-ink);
+          background:
+            radial-gradient(circle at 92% -8%,rgba(83,151,213,.13),transparent 31rem),
+            linear-gradient(180deg,#edf3f9 0,#f6f8fb 22rem,#eef3f8 100%);
+        }
+        .app[data-theme="default"] header{
+          background:
+            radial-gradient(circle at 84% -80%,rgba(129,196,255,.42),transparent 48%),
+            linear-gradient(135deg,#163552 0%,#255a86 57%,#2e709f 100%);
+          border-bottom:1px solid rgba(255,255,255,.18);
+          box-shadow:0 8px 28px rgba(21,49,77,.18);
+        }
+        .app header{z-index:90}
+        .app[data-theme="default"] .class-switcher-btn{
+          background:rgba(255,255,255,.11);
+          border-color:rgba(255,255,255,.24);
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+        }
+        .app[data-theme="default"] .stor-bar{
+          border:1px solid rgba(255,255,255,.35);
+          box-shadow:0 2px 8px rgba(35,65,98,.04);
+        }
+        .class-context-bar{
+          position:sticky;
+          top:0;
+          z-index:80;
+          width:100%;
+          padding:6px 12px;
+          border-bottom:1px solid rgba(38,76,116,.13);
+          background:rgba(248,251,254,.91);
+          box-shadow:0 5px 18px rgba(30,58,95,.08);
+          backdrop-filter:blur(16px) saturate(1.25);
+          -webkit-backdrop-filter:blur(16px) saturate(1.25);
+        }
+        .class-context-inner{
+          max-width:960px;
+          min-height:42px;
+          margin:0 auto;
+          display:flex;
+          align-items:center;
+          gap:10px;
+        }
+        .class-context-main{
+          min-width:0;
+          flex:1;
+          display:flex;
+          align-items:center;
+          gap:9px;
+          padding:7px 8px;
+          border:0;
+          border-radius:12px;
+          background:transparent;
+          color:var(--limu-ink);
+          text-align:left;
+          font-family:inherit;
+        }
+        .class-context-pin{
+          width:30px;
+          height:30px;
+          flex:0 0 30px;
+          display:grid;
+          place-items:center;
+          border-radius:10px;
+          color:#fff;
+          background:linear-gradient(145deg,#2f76ad,#20557f);
+          box-shadow:0 5px 12px rgba(32,85,127,.24);
+        }
+        .class-context-copy{min-width:0;display:flex;flex-direction:column;gap:1px}
+        .class-context-title{
+          overflow:hidden;
+          text-overflow:ellipsis;
+          white-space:nowrap;
+          font-size:13px;
+          line-height:1.35;
+          font-weight:900;
+          letter-spacing:.2px;
+        }
+        .class-context-meta{
+          overflow:hidden;
+          text-overflow:ellipsis;
+          white-space:nowrap;
+          color:var(--limu-muted);
+          font-size:10px;
+          line-height:1.35;
+          font-weight:700;
+        }
+        .class-context-status{
+          flex:0 0 auto;
+          min-height:30px;
+          display:inline-flex;
+          align-items:center;
+          gap:6px;
+          padding:6px 9px;
+          border:1px solid rgba(35,132,93,.2);
+          border-radius:999px;
+          background:rgba(35,132,93,.08);
+          color:#1f7755;
+          font-size:10px;
+          font-weight:900;
+          white-space:nowrap;
+        }
+        .class-context-status::before{
+          content:"";
+          width:7px;
+          height:7px;
+          border-radius:50%;
+          background:#32a475;
+          box-shadow:0 0 0 3px rgba(50,164,117,.12);
+        }
+        .class-context-status.pending{border-color:rgba(181,106,0,.22);background:rgba(181,106,0,.08);color:#976000}
+        .class-context-status.pending::before{background:#e19a28;box-shadow:0 0 0 3px rgba(225,154,40,.14)}
+        .class-context-status.conflict{border-color:rgba(196,59,75,.24);background:rgba(196,59,75,.08);color:#b22f40}
+        .class-context-status.conflict::before{background:#d94a5a;box-shadow:0 0 0 3px rgba(217,74,90,.13)}
+        .class-context-status.offline{border-color:rgba(92,110,128,.2);background:rgba(92,110,128,.08);color:#5d6e80}
+        .class-context-status.offline::before{background:#8795a3;box-shadow:none}
+        .class-locator-hero{
+          padding:14px;
+          border:1px solid var(--limu-line);
+          border-radius:16px;
+          background:linear-gradient(145deg,rgba(226,239,251,.85),rgba(255,255,255,.9));
+        }
+        .class-locator-metrics{
+          display:grid;
+          grid-template-columns:repeat(4,minmax(0,1fr));
+          gap:7px;
+          margin-top:11px;
+        }
+        .class-locator-metric{
+          min-width:0;
+          padding:9px 5px;
+          border:1px solid rgba(38,76,116,.08);
+          border-radius:12px;
+          background:rgba(255,255,255,.82);
+          text-align:center;
+        }
+        .class-locator-value{font-size:17px;font-weight:900;line-height:1.2}
+        .class-locator-label{margin-top:2px;color:var(--limu-muted);font-size:9px;font-weight:800}
+        .class-locator-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+        .class-locator-action{
+          min-height:40px;
+          flex:1 1 105px;
+          border:0;
+          border-radius:11px;
+          padding:9px 11px;
+          background:#e5eff8;
+          color:#24577f;
+          font-family:inherit;
+          font-size:11px;
+          font-weight:900;
+        }
+        .class-locator-action.primary{background:linear-gradient(135deg,#245d8a,#2f7ab0);color:#fff;box-shadow:0 5px 12px rgba(36,93,138,.2)}
+        .class-locator-action:disabled{opacity:.42;box-shadow:none}
+        .class-locator-list{display:flex;flex-direction:column;gap:7px;margin-top:13px}
+        .class-locator-option{
+          width:100%;
+          min-height:50px;
+          display:flex;
+          align-items:center;
+          gap:10px;
+          padding:10px 12px;
+          border:1px solid var(--limu-line);
+          border-radius:13px;
+          background:var(--limu-surface-soft);
+          color:var(--limu-ink);
+          text-align:left;
+          font-family:inherit;
+        }
+        .class-locator-option.active{border-color:rgba(43,109,168,.35);background:#eaf3fb;box-shadow:inset 3px 0 0 #2b6da8}
+        .class-locator-option-copy{min-width:0;flex:1}
+        .class-locator-option-title{font-size:12px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .class-locator-option-meta{margin-top:2px;color:var(--limu-muted);font-size:10px}
+        .class-locator-current{padding:3px 8px;border-radius:999px;background:#d7eadf;color:#23704f;font-size:9px;font-weight:900}
+        [data-theme="nerv"] .class-context-bar{background:rgba(7,2,0,.94);border-color:rgba(255,102,0,.38);box-shadow:0 4px 20px rgba(255,102,0,.14)}
+        [data-theme="nerv"] .class-context-main{color:#ff8844;font-family:"Share Tech Mono",monospace}
+        [data-theme="nerv"] .class-context-pin{border-radius:2px;background:rgba(255,102,0,.16);color:#ff8844;box-shadow:0 0 12px rgba(255,102,0,.22)}
+        [data-theme="nerv"] .class-context-meta{color:rgba(255,136,68,.58)}
+        [data-theme="nerv"] .class-locator-hero,[data-theme="nerv"] .class-locator-option{background:rgba(255,102,0,.045);border-color:rgba(255,102,0,.24);color:#ff9955}
+        [data-theme="nerv"] .class-locator-metric{background:rgba(255,102,0,.04);border-color:rgba(255,102,0,.14)}
+        [data-theme="nerv"] .class-locator-label,[data-theme="nerv"] .class-locator-option-meta{color:rgba(255,136,68,.58)}
+        [data-theme="nerv"] .class-locator-option.active{box-shadow:inset 3px 0 0 #ff6600}
+        [data-theme="nebula"] .class-context-bar{background:rgba(10,9,29,.92);border-color:rgba(143,109,255,.28);box-shadow:0 5px 22px rgba(0,0,0,.3)}
+        [data-theme="nebula"] .class-context-main{color:#e2dbff}
+        [data-theme="nebula"] .class-context-pin{background:linear-gradient(145deg,#7f5fe2,#5539ad)}
+        [data-theme="nebula"] .class-context-meta{color:rgba(220,210,255,.58)}
+        [data-theme="nebula"] .class-locator-hero,[data-theme="nebula"] .class-locator-option{background:rgba(130,95,225,.09);border-color:rgba(150,120,255,.22);color:#e2dbff}
+        [data-theme="nebula"] .class-locator-metric{background:rgba(255,255,255,.045);border-color:rgba(150,120,255,.14)}
+        [data-theme="nebula"] .class-locator-label,[data-theme="nebula"] .class-locator-option-meta{color:rgba(220,210,255,.58)}
+        [data-theme="nebula"] .class-locator-option.active{box-shadow:inset 3px 0 0 #9677ef}
+        .app[data-theme="default"] .calendar,
+        .app[data-theme="default"] .month-summary,
+        .app[data-theme="default"] .table-wrapper,
+        .app[data-theme="default"] .att-panel,
+        .app[data-theme="default"] .exempt-panel,
+        .app[data-theme="default"] .slip-panel{
+          border:1px solid var(--limu-line);
+          background:rgba(255,255,255,.96);
+          box-shadow:var(--limu-shadow);
+        }
+        .app[data-theme="default"] .calendar{border-radius:18px}
+        .app[data-theme="default"] .wd-row{background:linear-gradient(135deg,#1b4569,#286891)}
+        .app[data-theme="default"] .wd{color:rgba(235,247,255,.86)}
+        .app[data-theme="default"] .cal-grid{background:#fff}
+        .app[data-theme="default"] .cal-cell{background:rgba(255,255,255,.98);border-color:#e8eef5}
+        .app[data-theme="default"] .cal-empty{background:#f4f7fa}
+        .app[data-theme="default"] .cal-cell.is-complete{background:linear-gradient(145deg,#f7fcf9,#edf8f2)}
+        .app[data-theme="default"] .cal-cell.is-partial{background:linear-gradient(145deg,#fffdfa,#fff6e9)}
+        .app[data-theme="default"] .cal-cell.is-today{box-shadow:inset 0 0 0 2px rgba(43,109,168,.28)}
+        .app[data-theme="default"] .cal-cell.is-today .cal-day{background:linear-gradient(145deg,#2f78ae,#1f557f);box-shadow:0 4px 10px rgba(31,85,127,.25)}
+        .app[data-theme="default"] .summary-row{border-color:#e8eef5}
+        .app[data-theme="default"] .summary-row:hover{background:#f2f7fb}
+        .app[data-theme="default"] .table-wrapper{border-radius:18px}
+        .app[data-theme="default"] thead{background:linear-gradient(135deg,#183f61,#286991)}
+        .app[data-theme="default"] .att-panel,
+        .app[data-theme="default"] .exempt-panel,
+        .app[data-theme="default"] .slip-panel{border-radius:18px}
+        .calendar,.month-summary,.att-panel,.exempt-panel,.slip-panel,.archive-wrap>section{
+          contain:layout paint style;
+        }
+        .month-summary,.att-panel,.exempt-panel,.slip-panel,.archive-wrap>section{
+          content-visibility:auto;
+          contain-intrinsic-size:280px;
+        }
+        .day-action-bar{
+          margin:7px auto 2px;
+          padding:6px 12px;
+          border:1px solid rgba(255,255,255,.16);
+          border-radius:14px;
+          background:rgba(255,255,255,.08);
+        }
+        .day-action-bar .excel-btn,.day-action-bar .undo-btn{
+          min-height:40px;
+          border-radius:11px;
+        }
+        .day-primary-tool{box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+        .app[data-theme="default"] .day-action-bar{background:rgba(24,63,97,.11);border-color:rgba(255,255,255,.26)}
+        button:active{filter:saturate(.95) brightness(.97)}
+        @media(max-width:640px){
+          .hi-row2,.account-row{display:none!important}
+          .class-context-bar{padding:4px 8px}
+          .class-context-inner{min-height:42px}
+          .class-context-main{padding:5px 4px}
+          .class-context-status{padding:6px 8px}
+          .class-context-status .context-status-long{display:none}
+          .day-secondary-tool{display:none!important}
+          .day-action-bar{margin:5px 8px 0;padding:5px 7px}
+          .day-action-bar .excel-btn{padding-left:10px;padding-right:10px}
+          .mobile-dock{box-shadow:0 -8px 28px rgba(20,42,74,.16)}
+          .mobile-dock-btn.active{box-shadow:inset 0 0 0 1px rgba(43,109,168,.08)}
+          .mobile-dock-btn.active .dock-icon{transform:translateY(-1px)}
+          .class-locator-metrics{grid-template-columns:repeat(4,minmax(58px,1fr))}
+        }
+
+        /* ══ v20：慕夏新藝術裝飾主題＋Nebula 慕夏點綴 ══════════════ */
+        .app[data-theme="mucha"]{
+          --mucha-paper:#f4ebdd;
+          --mucha-paper-deep:#e8dcc8;
+          --mucha-ink:#39312c;
+          --mucha-green:#355a50;
+          --mucha-sage:#75836b;
+          --mucha-gold:#b28a45;
+          --mucha-rose:#b97078;
+          --mucha-line:rgba(139,99,47,.28);
+          color:var(--mucha-ink);
+          background:
+            radial-gradient(circle at 50% -9rem,rgba(210,179,109,.25),transparent 27rem),
+            radial-gradient(circle at -10% 34%,rgba(117,131,107,.12),transparent 25rem),
+            radial-gradient(circle at 110% 78%,rgba(185,112,120,.10),transparent 23rem),
+            repeating-linear-gradient(0deg,rgba(91,71,48,.018) 0 1px,transparent 1px 5px),
+            linear-gradient(180deg,#f7f0e5 0%,#f2e8d8 48%,#eee2d0 100%);
+        }
+        .app[data-theme="mucha"] header{
+          position:relative;
+          overflow:hidden;
+          background:
+            radial-gradient(circle at 50% 125%,rgba(226,201,135,.26),transparent 53%),
+            linear-gradient(135deg,#294b44 0%,#355f55 53%,#294a43 100%);
+          border-bottom:2px solid rgba(210,179,109,.78);
+          box-shadow:0 9px 28px rgba(45,60,48,.20),inset 0 -1px 0 rgba(255,244,214,.23);
+        }
+        .app[data-theme="mucha"] header::before{
+          content:"";
+          position:absolute;
+          inset:0;
+          z-index:0;
+          background:url("./assets/mucha-arch.svg") center 36%/min(880px,118vw) auto no-repeat;
+          opacity:.24;
+          filter:saturate(.78) brightness(1.18);
+          pointer-events:none;
+        }
+        .app[data-theme="mucha"] header::after{
+          content:"";
+          position:absolute;
+          left:7%;
+          right:7%;
+          bottom:-1px;
+          height:18px;
+          z-index:0;
+          background:url("./assets/mucha-divider.svg") center/100% 18px no-repeat;
+          opacity:.58;
+          pointer-events:none;
+        }
+        .app[data-theme="mucha"] header>*{position:relative;z-index:1}
+        .app[data-theme="mucha"] h1{
+          color:#f8ecd2;
+          text-shadow:0 1px 0 rgba(57,49,44,.6),0 0 18px rgba(226,201,135,.22);
+          letter-spacing:5px;
+        }
+        .app[data-theme="mucha"] .sub{color:rgba(248,236,210,.72)}
+        .app[data-theme="mucha"] .theme-btn{
+          background:rgba(244,235,221,.10);
+          border:1px solid rgba(224,201,135,.46);
+          color:#f6e8c8;
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+        }
+        .app[data-theme="mucha"] .theme-btn:hover{background:rgba(226,201,135,.2);box-shadow:0 0 14px rgba(210,179,109,.2)}
+        .app[data-theme="mucha"] .class-context-bar{
+          position:sticky;
+          background:rgba(247,240,229,.94);
+          border-color:rgba(139,99,47,.3);
+          box-shadow:0 6px 18px rgba(80,61,39,.10);
+        }
+        .app[data-theme="mucha"] .class-context-bar::after{
+          content:"";
+          position:absolute;
+          left:7%;
+          right:7%;
+          bottom:-2px;
+          height:9px;
+          background:url("./assets/mucha-divider.svg") center/100% 9px no-repeat;
+          opacity:.66;
+          pointer-events:none;
+        }
+        .app[data-theme="mucha"] .class-context-main{color:var(--mucha-green)}
+        .app[data-theme="mucha"] .class-context-pin{
+          color:#f8ecd2;
+          background:radial-gradient(circle at 36% 30%,#bca066,#7a5a2d);
+          border:1px solid rgba(255,244,214,.75);
+          border-radius:50% 50% 44% 44%;
+          box-shadow:0 4px 12px rgba(111,75,39,.24),inset 0 0 0 2px rgba(57,90,80,.24);
+        }
+        .app[data-theme="mucha"] .class-context-meta{color:#776b60}
+        .app[data-theme="mucha"] .class-context-status{
+          border-color:rgba(53,90,80,.22);
+          background:rgba(117,131,107,.11);
+          color:#355a50;
+        }
+        .app[data-theme="mucha"] .stor-bar{
+          border:1px solid rgba(139,99,47,.26);
+          border-left:3px solid #b28a45;
+          background:rgba(247,240,229,.88)!important;
+          color:var(--mucha-ink);
+          box-shadow:0 3px 12px rgba(80,61,39,.06);
+        }
+        .app[data-theme="mucha"] .month-label,
+        .app[data-theme="mucha"] .date-label,
+        .app[data-theme="mucha"] .att-title,
+        .app[data-theme="mucha"] .mt{
+          color:var(--mucha-green);
+          font-family:"Cinzel Decorative","Noto Sans TC",serif;
+          letter-spacing:1.2px;
+        }
+        .app[data-theme="mucha"] .calendar,
+        .app[data-theme="mucha"] .month-summary,
+        .app[data-theme="mucha"] .table-wrapper,
+        .app[data-theme="mucha"] .att-panel,
+        .app[data-theme="mucha"] .exempt-panel,
+        .app[data-theme="mucha"] .slip-panel,
+        .app[data-theme="mucha"] .day-view-card,
+        .app[data-theme="mucha"] .class-locator-hero{
+          position:relative;
+          border:1px solid rgba(139,99,47,.32);
+          background:rgba(250,245,236,.92);
+          box-shadow:0 9px 26px rgba(82,63,39,.09),inset 0 1px 0 rgba(255,255,255,.68);
+        }
+        .app[data-theme="mucha"] .calendar,
+        .app[data-theme="mucha"] .month-summary,
+        .app[data-theme="mucha"] .table-wrapper{border-radius:18px}
+        .app[data-theme="mucha"] .calendar::after,
+        .app[data-theme="mucha"] .month-summary::after,
+        .app[data-theme="mucha"] .class-locator-hero::after{
+          content:"";
+          position:absolute;
+          inset:3px;
+          z-index:5;
+          border-radius:inherit;
+          background:url("./assets/mucha-frame.svg") center/100% 100% no-repeat;
+          opacity:.52;
+          pointer-events:none;
+        }
+        .app[data-theme="mucha"] .wd-row{
+          background:
+            radial-gradient(circle at 50% -90%,rgba(226,201,135,.38),transparent 70%),
+            linear-gradient(135deg,#355a50,#486a5d);
+          border-bottom:1px solid rgba(210,179,109,.72);
+        }
+        .app[data-theme="mucha"] .wd{color:#f3e4c4;text-shadow:0 1px 0 rgba(0,0,0,.2)}
+        .app[data-theme="mucha"] .cal-grid{background:#e3d7c4}
+        .app[data-theme="mucha"] .cal-cell{background:rgba(250,246,238,.98);border-color:#e4d8c3}
+        .app[data-theme="mucha"] .cal-empty{background:#eee4d5;border-color:#e3d6c1}
+        .app[data-theme="mucha"] .cal-day{color:#4b453e;font-weight:800}
+        .app[data-theme="mucha"] .cal-cell.is-complete{background:linear-gradient(145deg,#f6f4e9,#e8efe3)}
+        .app[data-theme="mucha"] .cal-cell.is-partial{background:linear-gradient(145deg,#fbf4e8,#f6e3d7)}
+        .app[data-theme="mucha"] .cal-cell.is-today{box-shadow:inset 0 0 0 2px rgba(178,138,69,.48)}
+        .app[data-theme="mucha"] .cal-cell.is-today .cal-day{
+          color:#fff6df;
+          background:radial-gradient(circle at 35% 30%,#c7a660,#8f6830);
+          border:1px solid rgba(255,244,214,.78);
+          box-shadow:0 4px 12px rgba(122,84,40,.28),0 0 0 3px rgba(178,138,69,.12);
+        }
+        .app[data-theme="mucha"] .cal-dot{background:#b97078;box-shadow:0 0 0 2px rgba(185,112,120,.13)}
+        .app[data-theme="mucha"] .cal-counsel{color:#7a5b81}
+        .app[data-theme="mucha"] .summary-row{border-color:rgba(139,99,47,.17)}
+        .app[data-theme="mucha"] .summary-row:hover{background:rgba(226,216,194,.34)}
+        .app[data-theme="mucha"] .sum-date{color:#7a5a2d}
+        .app[data-theme="mucha"] .no-data{color:#897b6c}
+        .app[data-theme="mucha"] thead{
+          background:
+            radial-gradient(circle at 50% -180%,rgba(226,201,135,.35),transparent 75%),
+            linear-gradient(135deg,#355a50,#496b60);
+        }
+        .app[data-theme="mucha"] th{color:#f5e6c7;border-color:rgba(226,201,135,.34)}
+        .app[data-theme="mucha"] tbody tr{border-color:rgba(139,99,47,.13)}
+        .app[data-theme="mucha"] tbody tr:hover{background:rgba(117,131,107,.08)}
+        .app[data-theme="mucha"] .hwc{color:#3f584f}
+        .app[data-theme="mucha"] .gl,
+        .app[data-theme="mucha"] .sum-tag{
+          color:#365a50;
+          background:rgba(117,131,107,.13);
+          border:1px solid rgba(53,90,80,.18);
+        }
+        .app[data-theme="mucha"] .nb,
+        .app[data-theme="mucha"] .pb2,
+        .app[data-theme="mucha"] .nav-btn,
+        .app[data-theme="mucha"] .back-btn,
+        .app[data-theme="mucha"] .undo-btn,
+        .app[data-theme="mucha"] .excel-btn{
+          color:#355a50;
+          background:linear-gradient(180deg,#fbf6ed,#eee4d4);
+          border:1px solid rgba(139,99,47,.34);
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 2px 5px rgba(82,63,39,.06);
+        }
+        .app[data-theme="mucha"] .pb2.act,
+        .app[data-theme="mucha"] .bk,
+        .app[data-theme="mucha"] .class-locator-action.primary{
+          color:#fff5df;
+          background:linear-gradient(135deg,#355a50,#557467);
+          border:1px solid rgba(210,179,109,.72);
+          box-shadow:0 5px 14px rgba(53,90,80,.20),inset 0 1px 0 rgba(255,255,255,.1);
+        }
+        .app[data-theme="mucha"] .hi2,
+        .app[data-theme="mucha"] input,
+        .app[data-theme="mucha"] textarea,
+        .app[data-theme="mucha"] select{
+          color:#39312c;
+          background:#fbf6ed;
+          border-color:rgba(139,99,47,.35);
+        }
+        .app[data-theme="mucha"] .mo,
+        body.limu-theme-mucha .v18-sheet-panel,
+        body.limu-theme-mucha .theme-menu-panel{
+          color:#39312c!important;
+          background:
+            radial-gradient(circle at 50% -30%,rgba(210,179,109,.18),transparent 46%),
+            linear-gradient(180deg,#faf4ea,#f1e6d6)!important;
+          border:1px solid rgba(139,99,47,.46)!important;
+          box-shadow:0 22px 60px rgba(66,48,29,.30),inset 0 0 0 3px rgba(255,252,242,.55)!important;
+        }
+        body.limu-theme-mucha .v18-sheet-panel{position:relative!important}
+        body.limu-theme-mucha .theme-menu-panel{isolation:isolate}
+        body.limu-theme-mucha .v18-sheet-panel::before,
+        body.limu-theme-mucha .theme-menu-panel::before{
+          content:"";
+          position:absolute;
+          inset:4px;
+          z-index:0;
+          border-radius:inherit;
+          background:url("./assets/mucha-frame.svg") center/100% 100% no-repeat;
+          opacity:.38;
+          pointer-events:none;
+        }
+        body.limu-theme-mucha .v18-sheet-panel>*,
+        body.limu-theme-mucha .theme-menu-panel>*{position:relative;z-index:1}
+        .app[data-theme="mucha"] .ov,
+        body.limu-theme-mucha .v18-sheet-overlay{background:rgba(45,39,31,.67)!important}
+        .app[data-theme="mucha"] .class-locator-metric,
+        .app[data-theme="mucha"] .class-locator-option{
+          color:#39312c;
+          background:rgba(255,251,241,.72);
+          border-color:rgba(139,99,47,.22);
+        }
+        .app[data-theme="mucha"] .class-locator-label,
+        .app[data-theme="mucha"] .class-locator-option-meta{color:#7f7265}
+        .app[data-theme="mucha"] .class-locator-option.active{
+          background:rgba(117,131,107,.13);
+          border-color:rgba(53,90,80,.34);
+          box-shadow:inset 3px 0 0 #b28a45;
+        }
+        .app[data-theme="mucha"] .settings-tabbar{
+          background:rgba(244,235,221,.94);
+          border-bottom:1px solid rgba(139,99,47,.2);
+        }
+        .app[data-theme="mucha"] .archive-wrap{background:transparent}
+        .mucha-panel-divider{
+          display:none;
+          width:100%;
+          height:24px;
+          margin:-4px 0 6px;
+          background:url("./assets/mucha-divider.svg") center/100% 24px no-repeat;
+          opacity:.86;
+        }
+        body.limu-theme-mucha .mucha-panel-divider{display:block}
+
+        /* 星雲主題只加少量新藝術裝飾，保留原本宇宙主視覺。 */
+        .app[data-theme="nebula"] header{overflow:hidden}
+        .app[data-theme="nebula"] header::after{
+          content:"";
+          position:absolute;
+          left:9%;
+          right:9%;
+          bottom:-4px;
+          height:58px;
+          background:url("./assets/mucha-arch.svg") center bottom/620px auto no-repeat;
+          opacity:.17;
+          filter:hue-rotate(18deg) saturate(.75) brightness(1.45);
+          mix-blend-mode:screen;
+          pointer-events:none;
+        }
+        .app[data-theme="nebula"] header>*{position:relative;z-index:1}
+        .app[data-theme="nebula"] .class-context-bar::after{
+          content:"";
+          position:absolute;
+          left:13%;
+          right:13%;
+          bottom:-1px;
+          height:8px;
+          background:url("./assets/mucha-divider.svg") center/100% 8px no-repeat;
+          opacity:.23;
+          filter:hue-rotate(20deg) brightness(1.45);
+          pointer-events:none;
+        }
+        .app[data-theme="nebula"] .calendar::after{
+          content:"";
+          position:absolute;
+          inset:3px;
+          z-index:4;
+          border-radius:inherit;
+          background:url("./assets/mucha-frame.svg") center/100% 100% no-repeat;
+          opacity:.12;
+          filter:hue-rotate(18deg) brightness(1.5);
+          mix-blend-mode:screen;
+          pointer-events:none;
+        }
+        .app[data-theme="nebula"] .month-label::after{
+          content:"  ❧";
+          color:rgba(215,186,129,.52);
+          font-size:.8em;
+          letter-spacing:3px;
+        }
+        @media(max-width:640px){
+          .app[data-theme="mucha"] header::before{background-size:560px auto;opacity:.19}
+          .app[data-theme="mucha"] header::after{left:3%;right:3%;height:13px;background-size:100% 13px}
+          .app[data-theme="mucha"] .class-context-bar::after{left:2%;right:2%;opacity:.52}
+          .app[data-theme="mucha"] .calendar::after,
+          .app[data-theme="mucha"] .month-summary::after{opacity:.38}
+          .app[data-theme="mucha"] .mobile-dock{
+            border-color:rgba(139,99,47,.45);
+            background:rgba(247,240,229,.95);
+            box-shadow:0 -8px 26px rgba(72,55,35,.18),inset 0 1px 0 rgba(255,255,255,.68);
+          }
+          .app[data-theme="mucha"] .mobile-dock::before,
+          .app[data-theme="nebula"] .mobile-dock::before{
+            content:"";
+            position:absolute;
+            left:14%;
+            right:14%;
+            top:-2px;
+            height:9px;
+            background:url("./assets/mucha-divider.svg") center/100% 9px no-repeat;
+            pointer-events:none;
+          }
+          .app[data-theme="mucha"] .mobile-dock-btn{color:#71665a}
+          .app[data-theme="mucha"] .mobile-dock-btn.active{
+            color:#355a50;
+            background:rgba(117,131,107,.13);
+            border:1px solid rgba(178,138,69,.28);
+            border-radius:18px 18px 13px 13px;
+            box-shadow:inset 0 2px 0 rgba(226,201,135,.35);
+          }
+          .app[data-theme="nebula"] .mobile-dock::before{
+            opacity:.24;
+            filter:hue-rotate(18deg) brightness(1.4);
+          }
+        }
+        @media(max-width:390px){
+          .class-context-meta{max-width:190px}
+          .class-context-status{font-size:9px}
+          .class-locator-metrics{gap:5px}
+        }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"></noscript>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Noto+Sans+TC:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Noto+Sans+TC:wght@400;500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"></noscript>
   <!-- Firebase SDK（Auth + Firestore）-->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" crossorigin="anonymous"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js" crossorigin="anonymous"></script>
@@ -2545,6 +3161,7 @@ var _isPWA = false;
 document.addEventListener('visibilitychange', function() {
   try {
     window._writeLog('step', 'visibility:' + document.visibilityState);
+    document.documentElement.classList.toggle('performance-paused', document.hidden);
   } catch(e) {}
 });
 window.addEventListener('pagehide', function() {
@@ -2908,10 +3525,10 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const COUNSEL_PERIODS = ["早自習", "第1節", "第2節", "第3節", "第4節", "午休", "第5節", "第6節", "放學後"];
 const COUNSEL_TYPES = ["學習", "行為", "情緒", "人際", "家庭", "其他"];
 const COUNSEL_FOLLOWUP = ["需追蹤", "已處理", "轉介"];
-const APP_VERSION = "14.0.1";
+const APP_VERSION = "16.0.0";
 const APP_BUILD_DATE = "2026-07-27";
-const APP_BUILD_ID = "limu-teacher-v18-1-20260727";
-const APP_CACHE_NAME = "hw-tracker-v18-1";
+const APP_BUILD_ID = "limu-teacher-v20-20260727";
+const APP_CACHE_NAME = "hw-tracker-v20";
 window.__LIMU_BUILD__ = Object.freeze({
     appVersion: APP_VERSION,
     buildDate: APP_BUILD_DATE,
@@ -2942,6 +3559,13 @@ function runWhenIdle(callback, timeout) {
         return requestIdleCallback(callback, { timeout:Number(timeout) || 800 });
     }
     return setTimeout(callback, 32);
+}
+
+function yieldToMainThread() {
+    if (typeof scheduler !== "undefined" && scheduler && typeof scheduler.yield === "function") {
+        return scheduler.yield();
+    }
+    return new Promise(function(resolve) { setTimeout(resolve, 0); });
 }
 // ── Drive 已改用 Firestore ──
 const gSignIn = typeof window !== "undefined" && window.gSignIn ? window.gSignIn : async () => { throw new Error("請使用 PWA 版本登入 Google"); };
@@ -7237,9 +7861,24 @@ function App() {
         { id: 'default', icon: '☀️', name: '一般模式', desc: '清爽藍白配色' },
         { id: 'nebula', icon: '🌌', name: '星雲模式', desc: '天馬座星雲・深邃宇宙' },
         { id: 'nerv', icon: '⬡', name: 'NERV模式', desc: '新世紀福音戰士' },
+        { id: 'mucha', icon: '❧', name: '慕夏・新藝術', desc: '植物鞭線・日輪金框・象牙紙色' },
     ];
     const isNerv = theme === "nerv";
     const isNebula = theme === "nebula";
+    const isMucha = theme === "mucha";
+    useEffect(function() {
+        var body = document.body;
+        var themeMeta = document.querySelector('meta[name="theme-color"]');
+        if (body) body.classList.toggle("limu-theme-mucha", isMucha);
+        if (themeMeta) {
+            var themeColors = { "default":"#163552", "nebula":"#08071c", "nerv":"#120400", "mucha":"#355a50" };
+            themeMeta.setAttribute("content", themeColors[theme] || themeColors.default);
+        }
+        document.documentElement.style.colorScheme = (isNerv || isNebula) ? "dark" : "light";
+        return function() {
+            if (body) body.classList.remove("limu-theme-mucha");
+        };
+    }, [theme, isMucha, isNerv, isNebula]);
     function academicCalendarRange() {
         var range = academicYearRange(schoolYear);
         return { start:range.start, end:range.end };
@@ -8038,6 +8677,8 @@ function App() {
     const [syncEpoch, setSyncEpoch] = useState(() => Number(safeGet("hw5ren:lastSyncEpoch")) || 0);
     const [backupEpoch, setBackupEpoch] = useState(() => Number(safeGet("hw5ren:lastBackupEpoch")) || 0);
     const [dataLocator, setDataLocator] = useState({ loading:true, local:null, cloud:null, pending:0, conflicts:0, checkedAt:0 });
+    const dataLocatorSeqRef = useRef(0);
+    const [showClassLocator, setShowClassLocator] = useState(false);
     const [showTodayDashboard, setShowTodayDashboard] = useState(false);
     const [todayDashboardData, setTodayDashboardData] = useState(null);
     const [todayDashboardBusy, setTodayDashboardBusy] = useState(false);
@@ -8047,6 +8688,14 @@ function App() {
     const [globalSearchResults, setGlobalSearchResults] = useState([]);
     const [globalSearchBusy, setGlobalSearchBusy] = useState(false);
     const [globalSearchType, setGlobalSearchType] = useState('all');
+    const globalSearchSeqRef = useRef(0);
+    const monthRecordEntries = React.useMemo(function() {
+        return Object.entries(monthDays)
+            .filter(function(pair) {
+                return (pair[1].rows || []).some(function(row) { return row && row.hwName; });
+            })
+            .sort(function(a, b) { return a[0].localeCompare(b[0]); });
+    }, [monthDays]);
     // getDriveFilename 已移除
     function saveYearRecord(year, school, cls) {
         if (!year && !cls)
@@ -8188,10 +8837,13 @@ function App() {
         }
     }
     async function refreshDataLocator(includeCloud) {
+        var locatorSeq = ++dataLocatorSeqRef.current;
         var cid = _sl.get('hw5ren:activeClass') || activeClassId;
         if (!cid) { setDataLocator({ loading:false, local:null, cloud:null, pending:0, conflicts:0, checkedAt:Date.now() }); return; }
+        setDataLocator(function(prev){ return Object.assign({}, prev, { loading:true }); });
         try {
             var keys = await idbKeys();
+            if (locatorSeq !== dataLocatorSeqRef.current) return;
             var cls = (classes || []).find(function(item){ return item && item.id === cid; }) ||
                 { id:cid, year:schoolYear, className:className };
             var local = summarizeClassDataKeys(keys, cls, schoolYear, false);
@@ -8201,23 +8853,26 @@ function App() {
                     (text.indexOf(cid) >= 0 || text.indexOf(encodeURIComponent(cid)) >= 0);
             }).length;
             var pending = getDirtyKeys(cid + ':').length + getDirtySettingKeys().length;
-            setDataLocator(function(prev){ return {
+            setDataLocator(function(prev){ return locatorSeq === dataLocatorSeqRef.current ? {
                 loading:false, local:local, cloud:includeCloud === false ? prev.cloud : null,
                 pending:pending, conflicts:conflicts, checkedAt:Date.now()
-            }; });
+            } : prev; });
             if (includeCloud !== false && firebaseUid && navigator.onLine) {
                 try {
                     var remote = await Promise.all([
                         window.fsGetAll(firebaseUid, cid + ':day:'),
                         window.fsGetAll(firebaseUid, cid + ':counsel:')
                     ]);
+                    if (locatorSeq !== dataLocatorSeqRef.current) return;
                     var cloudKeys = Object.keys(remote[0] || {}).concat(Object.keys(remote[1] || {}));
                     var cloud = summarizeClassDataKeys(cloudKeys, cls, schoolYear, false);
                     setDataLocator({ loading:false, local:local, cloud:cloud, pending:pending, conflicts:conflicts, checkedAt:Date.now() });
                 } catch(eCloudLocator) { /* 本機定位仍可正常使用 */ }
             }
         } catch(eLocator) {
-            setDataLocator(function(prev){ return Object.assign({}, prev, { loading:false, checkedAt:Date.now() }); });
+            if (locatorSeq === dataLocatorSeqRef.current) {
+                setDataLocator(function(prev){ return Object.assign({}, prev, { loading:false, checkedAt:Date.now() }); });
+            }
         }
     }
     function jumpToClassDate(classId, dateStr) {
@@ -8327,7 +8982,8 @@ function App() {
     async function runGlobalSearch(queryValue) {
         var query = String(queryValue === undefined ? globalSearchQuery : queryValue).trim();
         setGlobalSearchQuery(query);
-        if (!query) { setGlobalSearchResults([]); return; }
+        var searchSeq = ++globalSearchSeqRef.current;
+        if (!query) { setGlobalSearchResults([]); setGlobalSearchBusy(false); return; }
         setGlobalSearchBusy(true);
         try {
             var lowered = query.toLowerCase(), seatMatch = query.match(/^(?:座號\s*)?(\d{1,2})(?:\s*號)?$/);
@@ -8365,14 +9021,18 @@ function App() {
                 var normalized = normalizeAcademicYear(cls.year);
                 return [normalized.valid ? normalized.rocYear + '學年度' : cls.year, cls.className].filter(Boolean).join(' ');
             }
-            var searchRows = await mapWithConcurrency(primaryKeys, 12, async function(primaryKey) {
-                var parsedKey = parsePrimaryRecordKey(primaryKey);
-                if (!parsedKey) return null;
+            var searchableRecords = primaryKeys.map(function(primaryKey) {
+                return { primaryKey:primaryKey, parsedKey:parsePrimaryRecordKey(primaryKey) };
+            }).filter(function(item) { return !!item.parsedKey; });
+            var searchRows = await mapWithConcurrency(searchableRecords, 12, async function(searchable) {
+                var primaryKey = searchable.primaryKey, parsedKey = searchable.parsedKey;
                 var hasMirror = Object.prototype.hasOwnProperty.call(mirrorValues, primaryKey);
                 var raw = hasMirror ? mirrorValues[primaryKey] : await idbGet(primaryKey);
                 return raw ? { primaryKey:primaryKey, parsedKey:parsedKey, raw:raw } : null;
             });
             for (var i = 0; i < searchRows.length; i++) {
+                if (searchSeq !== globalSearchSeqRef.current) return;
+                if (i > 0 && i % 40 === 0) await yieldToMainThread();
                 var searchRow = searchRows[i];
                 if (!searchRow) continue;
                 var parsedKey = searchRow.parsedKey;
@@ -8441,11 +9101,13 @@ function App() {
                 });
             });
             results.sort(function(a,b){ return String(b.date || '').localeCompare(String(a.date || '')) || String(a.title).localeCompare(String(b.title)); });
-            setGlobalSearchResults(results);
+            if (searchSeq === globalSearchSeqRef.current) setGlobalSearchResults(results);
         } catch(e) {
-            setGlobalSearchResults([{ id:'error', type:'error', classId:'', classLabel:'', date:'', title:'搜尋失敗', detail:String(e && e.message || e) }]);
+            if (searchSeq === globalSearchSeqRef.current) {
+                setGlobalSearchResults([{ id:'error', type:'error', classId:'', classLabel:'', date:'', title:'搜尋失敗', detail:String(e && e.message || e) }]);
+            }
         }
-        setGlobalSearchBusy(false);
+        if (searchSeq === globalSearchSeqRef.current) setGlobalSearchBusy(false);
     }
     useEffect(function(){ refreshDataLocator(true); }, [activeClassId, schoolYear, syncEpoch]);
     // 計算月份和學期抵免統計
@@ -8961,7 +9623,8 @@ function App() {
             showDatePicker || grDialog || grCenter || grFormalTarget || wpOpen ||
             showThemeMenu || showGearMenu || showCalImport || dayEventModal ||
             showHistory || showConflictCenter || slipNameModal || modal ||
-            attModal || periodModal || lateModal || showTodayDashboard || showGlobalSearch
+            attModal || periodModal || lateModal || showTodayDashboard || showGlobalSearch ||
+            showClassLocator
         );
         if (!shouldLock) return;
         var scrollY = window.scrollY || window.pageYOffset || 0;
@@ -8989,7 +9652,8 @@ function App() {
         showDatePicker, grDialog, grCenter, grFormalTarget, wpOpen,
         showThemeMenu, showGearMenu, showCalImport, dayEventModal,
         showHistory, showConflictCenter, slipNameModal, modal,
-        attModal, periodModal, lateModal, showTodayDashboard, showGlobalSearch
+        attModal, periodModal, lateModal, showTodayDashboard, showGlobalSearch,
+        showClassLocator
     ]);
     function toggleLate(num) {
         setDayLate(prev => {
@@ -10058,6 +10722,24 @@ function App() {
                 driveStatus === "error" && driveError && React.createElement("span", { style:{fontSize:9,color:"#ff8a80",maxWidth:100,textAlign:"right",lineHeight:1.2} }, driveError)
             ));
     }
+    var locatorYear = normalizeAcademicYear(schoolYear);
+    var locatorClassTitle = [
+        locatorYear.valid ? locatorYear.rocYear + " 學年度" : schoolYear,
+        className || "尚未選擇班級"
+    ].filter(Boolean).join("｜");
+    var locatorRangeText = dataLocator.local && dataLocator.local.first
+        ? dataLocator.local.first + "～" + dataLocator.local.last
+        : "尚無本機日期資料";
+    var locatorStatusClass = dataLocator.conflicts > 0 ? " conflict"
+        : isOffline ? " offline"
+        : dataLocator.pending > 0 || driveStatus === "syncing" ? " pending"
+        : "";
+    var locatorStatusText = dataLocator.conflicts > 0 ? "衝突 " + dataLocator.conflicts
+        : isOffline ? "離線安全"
+        : dataLocator.pending > 0 ? "待同步 " + dataLocator.pending
+        : driveStatus === "syncing" ? "同步中"
+        : driveStatus === "ok" ? "已同步"
+        : "本機安全";
     return (React.createElement(React.Fragment, null,
         React.createElement("div", { className: "app", "data-theme": theme, onClick: (e) => { if (showClassDropdown && !e.target.closest(".class-switcher")) setShowClassDropdown(false); } },
         React.createElement("header", null,
@@ -10088,7 +10770,7 @@ function App() {
                     // 輔導紀錄
                     React.createElement("button", { className: "theme-btn header-quick-btn", onClick: function() { setGrCenter(true); setGrTab('recent'); setGrFilter('7'); setGrSearch(''); }, title: "輔導紀錄中心", 'aria-label':"開啟輔導紀錄中心", style: { background: grRecords.length > 0 ? "rgba(156,39,176,.35)" : "rgba(255,255,255,.15)", fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, isNerv ? "▣" : "📋"),
                     // 主題切換
-                    React.createElement("button", { className: "theme-btn", onClick: handleThemeToggle, 'aria-label':"切換顯示主題", style: { background: theme === 'nerv' ? 'rgba(255,102,0,.2)' : theme === 'nebula' ? 'rgba(150,100,255,.2)' : 'rgba(255,255,255,.15)', fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, theme === 'nerv' ? '⬡' : theme === 'nebula' ? '🌌' : '☀️'),
+                    React.createElement("button", { className: "theme-btn", onClick: handleThemeToggle, 'aria-label':"切換顯示主題", style: { background: theme === 'nerv' ? 'rgba(255,102,0,.2)' : theme === 'nebula' ? 'rgba(150,100,255,.2)' : theme === 'mucha' ? 'rgba(210,179,109,.22)' : 'rgba(255,255,255,.15)', fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, theme === 'nerv' ? '⬡' : theme === 'nebula' ? '🌌' : theme === 'mucha' ? '❧' : '☀️'),
                     // 齒輪選單
                     React.createElement("button", { className: "theme-btn", onClick: function() { setShowGearMenu(true); }, title: "選單", 'aria-label':"開啟功能選單", style: { fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, "⚙️")
                 ),
@@ -10133,6 +10815,36 @@ function App() {
                 React.createElement("div", { className:"account-row", style:{display:'flex',alignItems:'center',gap:8,fontSize:11,opacity:0.75,padding:'0 12px 2px'} },
                     userEmail && React.createElement("span", { style:{color:"rgba(255,255,255,.6)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"} }, "👤 " + userEmail),
                     React.createElement("span", { style:{marginLeft:'auto',whiteSpace:'nowrap'} }, "📅 " + rocSemester())
+                )
+            ),
+            React.createElement("div", { className:"class-context-bar", role:"region", 'aria-label':"固定班級定位器" },
+                React.createElement("div", { className:"class-context-inner" },
+                    React.createElement("button", {
+                        type:"button",
+                        className:"class-context-main",
+                        onClick:function(){
+                            setShowClassLocator(true);
+                            if (!dataLocator.checkedAt || Date.now() - dataLocator.checkedAt > 30000) refreshDataLocator(true);
+                        },
+                        'aria-label':"展開班級定位詳細資訊"
+                    },
+                        React.createElement("span", { className:"class-context-pin", 'aria-hidden':"true" }, "⌖"),
+                        React.createElement("span", { className:"class-context-copy" },
+                            React.createElement("span", { className:"class-context-title" }, locatorClassTitle),
+                            React.createElement("span", { className:"class-context-meta" },
+                                dataLocator.loading ? "正在定位班級資料…" :
+                                (dataLocator.local ? "本機 " + dataLocator.local.days + " 天｜" + locatorRangeText : "點此選擇或檢查班級"))
+                        )
+                    ),
+                    React.createElement("button", {
+                        type:"button",
+                        className:"class-context-status" + locatorStatusClass,
+                        onClick:function(){ setShowClassLocator(true); },
+                        'aria-label':"同步狀態：" + locatorStatusText
+                    },
+                        React.createElement("span", { className:"context-status-long" }, locatorStatusText),
+                        React.createElement("span", { 'aria-hidden':"true" }, "›")
+                    )
                 )
             ),
             intro && (React.createElement("div", { className: "nerv-intro" },
@@ -10186,9 +10898,9 @@ function App() {
                 React.createElement("button", { className:"nav-btn", onClick:goMonthToday, 'aria-label':"回到今天", title:"回到今天", style:{width:"auto",minWidth:46,padding:"0 9px",fontSize:12,fontWeight:800} }, isNerv ? "NOW" : "今天"),
                 React.createElement("button", { className: "nav-btn", onClick: nextMonth, 'aria-label':"下一個月" }, "\u203A"),
                 renderSyncChip('nav', isNerv ? '#ff9a64' : 'rgba(255,255,255,.85)')),
-            view === "day" && React.createElement("div", { className: "excel-bar" },
+            view === "day" && React.createElement("div", { className: "excel-bar day-action-bar", 'aria-label':"單日主要工具" },
                 importMsg && React.createElement("span", { className: "import-msg" }, importMsg),
-                React.createElement("button", { className: "excel-btn diag-btn", onClick: async () => {
+                React.createElement("button", { className: "excel-btn diag-btn day-secondary-tool", "data-day-tool":"diagnostic", onClick: async () => {
                     // 顯示白屏診斷日誌
                     try {
                         var log = {};
@@ -10288,7 +11000,7 @@ function App() {
                         }
                         setTimeout(() => setImportMsg(""), 8000);
                     } }, "🔍 診斷"),
-                React.createElement("button", { className: "excel-btn", onClick: async () => {
+                React.createElement("button", { className: "excel-btn day-secondary-tool", "data-day-tool":"card-scan", onClick: async () => {
                     // 獎卡資料掃描（診斷用，僅讀取，不寫入任何資料）
                     try {
                         if (!firebaseUid) { alert('尚未登入，無法掃描獎卡資料'); return; }
@@ -10314,12 +11026,12 @@ function App() {
                         setImportMsg("");
                     } catch(exOuter) { alert('掃描發生未預期錯誤：' + exOuter); setImportMsg(""); }
                 } }, "🎴 獎卡"),
-                React.createElement("button", { className: "excel-btn", onClick: async () => {
+                React.createElement("button", { className: "excel-btn day-primary-tool", onClick: async () => {
                     try { await doSync(); setImportMsg("✅ 已同步到 Firebase"); }
                     catch(e) { setImportMsg("❌ Firebase 同步失敗"); }
                     setTimeout(() => setImportMsg(""), 3000);
                 } }, "☁️ 同步"),
-                React.createElement("button", { className: "excel-btn", onClick: function() { wpOpenPlan(selDate || today()); }, title: "作業計畫" }, "📅"),
+                React.createElement("button", { className: "excel-btn day-primary-tool", onClick: function() { wpOpenPlan(selDate || today()); }, title: "作業計畫", 'aria-label':"開啟週作業計畫" }, "📅 計畫"),
                 React.createElement("button", { className: "undo-btn", onClick: undo, disabled: !canUndo, title: "上一動", 'aria-label':"復原上一個動作" }, isNerv ? "◁" : "↩"),
                 React.createElement("button", { className: "undo-btn", onClick: redo, disabled: !canRedo, title: "下一動", 'aria-label':"重做下一個動作" }, isNerv ? "▷" : "↪"))),
         view === "month" && (React.createElement("main", null, loading ? (React.createElement("div", { className: "skeleton-cal" },
@@ -10337,34 +11049,8 @@ function App() {
                 })
             )
         )) : (React.createElement(React.Fragment, null,
-            dataLocator.local && React.createElement("div", { style:{
-                margin:"8px 10px 6px", padding:"10px 12px", borderRadius:14,
-                background:isNerv?"rgba(0,160,255,.07)":"#eef6ff",
-                border:isNerv?"1px solid rgba(0,180,255,.28)":"1px solid #cfe2f3",
-                color:isNerv?"#8bd3ff":"#315f8d", fontSize:11, lineHeight:1.6
-            }, 'aria-label':"班級資料定位器" },
-                React.createElement("div", { style:{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"} },
-                    React.createElement("strong", { style:{fontSize:12,color:isNerv?"#8bd3ff":"#1e3a5f"} }, "📍 班級資料定位器"),
-                    React.createElement("span", null, normalizeAcademicYear(schoolYear).valid ? normalizeAcademicYear(schoolYear).label : schoolYear),
-                    React.createElement("button", { onClick:function(){refreshDataLocator(true);},disabled:dataLocator.loading,style:{marginLeft:"auto",border:"none",borderRadius:9,padding:"4px 8px",background:isNerv?"rgba(0,160,255,.12)":"#fff",color:"inherit",fontSize:10,fontWeight:800,cursor:"pointer"} }, dataLocator.loading ? "檢查中…" : "重新檢查")),
-                React.createElement("div", null,
-                    "本機 " + dataLocator.local.days + " 天",
-                    "｜雲端 " + (dataLocator.cloud ? dataLocator.cloud.days + " 天" : (firebaseUid && navigator.onLine ? "尚未完成" : "未連線")),
-                    "｜待同步 " + dataLocator.pending,
-                    "｜衝突 " + dataLocator.conflicts),
-                React.createElement("div", null,
-                    "日期範圍：" + (dataLocator.local.first ? dataLocator.local.first + "～" + dataLocator.local.last : "尚無資料"),
-                    dataLocator.local.outside ? "｜⚠ 學年度範圍外 " + dataLocator.local.outside + " 天（資料仍保留）" : "",
-                    lastSyncTime ? "｜最近同步 " + lastSyncTime : ""),
-                dataLocator.local.first && React.createElement("div", { style:{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"} },
-                    React.createElement("button", { onClick:function(){jumpToClassDate(activeClassId,dataLocator.local.first);},style:{border:"none",borderRadius:9,padding:"5px 9px",background:isNerv?"rgba(0,160,255,.14)":"#dceeff",color:"inherit",fontSize:10,fontWeight:800,cursor:"pointer"} }, "第一筆"),
-                    React.createElement("button", { onClick:function(){jumpToClassDate(activeClassId,dataLocator.local.last);},style:{border:"none",borderRadius:9,padding:"5px 9px",background:isNerv?"rgba(0,160,255,.14)":"#dceeff",color:"inherit",fontSize:10,fontWeight:800,cursor:"pointer"} }, "最後一筆"),
-                    React.createElement("button", { onClick:openTodayWorkspace,style:{border:"none",borderRadius:9,padding:"5px 9px",background:isNerv?"rgba(255,102,0,.15)":"#fff3e0",color:isNerv?"#ff9955":"#a75500",fontSize:10,fontWeight:800,cursor:"pointer"} }, "今日工作台"),
-                    React.createElement("button", { onClick:function(){setShowGlobalSearch(true);setTimeout(function(){var el=document.querySelector('[aria-label=\"全域搜尋輸入\"]');if(el)el.focus();},30);},style:{border:"none",borderRadius:9,padding:"5px 9px",background:isNerv?"rgba(170,100,255,.14)":"#f1e8ff",color:isNerv?"#c9a0ff":"#6a38a0",fontSize:10,fontWeight:800,cursor:"pointer"} }, "全域搜尋")
-                )
-            ),
             dataLocator.local && dataLocator.local.days > 0 &&
-            Object.values(monthDays).every(function(entry){ return !(entry.rows || []).some(function(row){ return row && row.hwName; }); }) &&
+            monthRecordEntries.length === 0 &&
             React.createElement("div", { role:"status", style:{margin:"6px 10px 8px",padding:"11px 13px",borderRadius:13,background:isNerv?"rgba(255,160,0,.10)":"#fff8e1",border:isNerv?"1px solid rgba(255,160,0,.35)":"1px solid #ffe082",color:isNerv?"#ffbd66":"#8d6500",fontSize:12,lineHeight:1.55} },
                 React.createElement("strong", null, "這個月份沒有作業紀錄，但資料沒有消失。"),
                 React.createElement("span", null, " 此班另有 " + dataLocator.local.days + " 天資料，最近一筆在 " + dataLocator.local.last + "。"),
@@ -10385,10 +11071,7 @@ function App() {
                 React.createElement("span", null, "⚫✗ 全員缺席"),
                 React.createElement("span", null, "⚪ 未登記")),
             React.createElement("div", { className: "month-summary" },
-                Object.entries(monthDays)
-                    .filter(([, entry]) => (entry.rows || []).some(r => r === null || r === void 0 ? void 0 : r.hwName))
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([ds, entry]) => {
+                monthRecordEntries.map(([ds, entry]) => {
                     var _a, _b, _c;
                     const rows = entry.rows || [];
                     const att = entry.attendance || {};
@@ -10411,7 +11094,7 @@ function App() {
                                 absentCount,
                                 " \u4EBA"))));
                 }),
-                Object.values(monthDays).every(e => !(e.rows || []).some(r => r === null || r === void 0 ? void 0 : r.hwName)) && (React.createElement("p", { className: "no-data" }, isNerv ? "// NO MISSION DATA THIS MONTH //" : "本月尚無紀錄，點選日期開始登記")),
+                monthRecordEntries.length === 0 && (React.createElement("p", { className: "no-data" }, isNerv ? "// NO MISSION DATA THIS MONTH //" : "本月尚無紀錄，點選日期開始登記")),
                 React.createElement("div", { style: { margin: "8px 0 4px" } },
                     React.createElement("button", {
                         className: "excel-btn",
@@ -11820,16 +12503,123 @@ function App() {
                 )
             )
         )),
+        showClassLocator && React.createElement("div", {
+            className:"v18-sheet-overlay",
+            role:"dialog", 'aria-modal':"true", 'aria-label':"班級定位詳細資訊",
+            onClick:function(e){ if(e.target===e.currentTarget && !dataLocator.loading) setShowClassLocator(false); },
+            style:{position:"fixed",inset:0,zIndex:9650,background:"rgba(8,18,32,.68)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}
+        }, React.createElement("div", {
+            className:"v18-sheet-panel class-locator-panel",
+            style:{
+                width:"100%",maxWidth:560,maxHeight:"88vh",overflowY:"auto",
+                background:isNerv?"#100500":isNebula?"#111329":isMucha?"#f4ebdd":"#f8fafc",
+                color:isNerv?"#ff9955":isNebula?"#ded7ff":isMucha?"#39312c":"#18324f",
+                borderRadius:22,padding:16,boxShadow:"0 24px 70px rgba(0,0,0,.42)"
+            }
+        },
+            React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8,marginBottom:12} },
+                React.createElement("div", { style:{minWidth:0,flex:1} },
+                    React.createElement("div", { style:{fontSize:18,fontWeight:900} }, isNerv ? "◈ CLASS LOCATOR" : "⌖ 班級定位器"),
+                    React.createElement("div", { style:{fontSize:10,opacity:.62,marginTop:2} }, "隨時確認目前班級、資料位置與同步狀態")
+                ),
+                React.createElement("button", {
+                    type:"button",disabled:dataLocator.loading,
+                    onClick:function(){refreshDataLocator(true);},
+                    style:{border:"none",borderRadius:10,padding:"7px 9px",background:isNerv?"rgba(255,102,0,.12)":isNebula?"rgba(145,110,255,.18)":"#e6edf5",color:"inherit",fontSize:10,fontWeight:900}
+                }, dataLocator.loading ? "定位中…" : "重新檢查"),
+                React.createElement("button", {
+                    type:"button",onClick:function(){setShowClassLocator(false);},'aria-label':"關閉班級定位器",
+                    style:{width:36,height:36,border:"none",borderRadius:12,background:"transparent",color:"inherit",fontSize:25}
+                }, "×")
+            ),
+            React.createElement("div", { className:"mucha-panel-divider", "aria-hidden":"true" }),
+            React.createElement("section", { className:"class-locator-hero", 'aria-label':"目前班級資料摘要" },
+                React.createElement("div", { style:{display:"flex",alignItems:"start",gap:10} },
+                    React.createElement("span", { className:"class-context-pin", 'aria-hidden':"true" }, "⌖"),
+                    React.createElement("div", { style:{minWidth:0,flex:1} },
+                        React.createElement("div", { style:{fontSize:15,fontWeight:900,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"} }, locatorClassTitle),
+                        React.createElement("div", { style:{fontSize:10,opacity:.65,marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"} },
+                            [schoolName, locatorRangeText].filter(Boolean).join("｜"))
+                    ),
+                    React.createElement("span", { className:"class-context-status" + locatorStatusClass }, locatorStatusText)
+                ),
+                React.createElement("div", { className:"class-locator-metrics" },
+                    [
+                        ["本機",dataLocator.local ? dataLocator.local.days : "—"],
+                        ["雲端",dataLocator.cloud ? dataLocator.cloud.days : "—"],
+                        ["待同步",dataLocator.pending || 0],
+                        ["衝突",dataLocator.conflicts || 0]
+                    ].map(function(item){
+                        return React.createElement("div", { key:item[0],className:"class-locator-metric" },
+                            React.createElement("div", { className:"class-locator-value" }, item[1]),
+                            React.createElement("div", { className:"class-locator-label" }, item[0])
+                        );
+                    })
+                ),
+                dataLocator.local && dataLocator.local.outside > 0 && React.createElement("div", {
+                    style:{marginTop:9,padding:"8px 10px",borderRadius:10,background:isNerv?"rgba(255,170,0,.09)":"#fff4dc",color:isNerv?"#ffbd66":"#946000",fontSize:10.5,fontWeight:800}
+                }, "⚠ 另有 " + dataLocator.local.outside + " 天位於目前學年度範圍外，資料仍完整保留。"),
+                React.createElement("div", { className:"class-locator-actions" },
+                    React.createElement("button", {
+                        type:"button",className:"class-locator-action",disabled:!(dataLocator.local && dataLocator.local.first),
+                        onClick:function(){setShowClassLocator(false);jumpToClassDate(activeClassId,dataLocator.local.first);}
+                    }, "跳到第一筆"),
+                    React.createElement("button", {
+                        type:"button",className:"class-locator-action primary",disabled:!(dataLocator.local && dataLocator.local.last),
+                        onClick:function(){setShowClassLocator(false);jumpToClassDate(activeClassId,dataLocator.local.last);}
+                    }, "查看最近資料"),
+                    React.createElement("button", {
+                        type:"button",className:"class-locator-action",
+                        onClick:function(){setShowClassLocator(false);openTodayWorkspace();}
+                    }, "今日工作台")
+                ),
+                lastSyncTime && React.createElement("div", { style:{marginTop:8,fontSize:9.5,opacity:.58,textAlign:"right"} }, "最近同步：" + lastSyncTime)
+            ),
+            React.createElement("div", { style:{margin:"15px 2px 7px",fontSize:10,fontWeight:900,letterSpacing:1.5,opacity:.55} }, "切換班級"),
+            React.createElement("div", { className:"class-locator-list" },
+                filterTombstonedClasses(classes || []).length === 0
+                    ? React.createElement("button", {
+                        type:"button",className:"class-locator-option",
+                        onClick:function(){setShowClassLocator(false);setView("settings");}
+                    }, React.createElement("span", { className:"class-locator-option-copy" },
+                        React.createElement("span", { className:"class-locator-option-title" }, "尚未建立班級"),
+                        React.createElement("span", { className:"class-locator-option-meta" }, "前往班級設定建立第一個班級")
+                    ))
+                    : filterTombstonedClasses(classes || []).map(function(cls){
+                        var isActive = cls.id === (_sl.get("hw5ren:activeClass") || activeClassId);
+                        var normalizedClassYear = normalizeAcademicYear(cls.year);
+                        return React.createElement("button", {
+                            type:"button",key:cls.id,className:"class-locator-option" + (isActive ? " active" : ""),
+                            onClick:function(){
+                                setShowClassLocator(false);
+                                if (!isActive) switchClass(cls);
+                            }
+                        },
+                            React.createElement("span", { className:"class-locator-option-copy" },
+                                React.createElement("span", { className:"class-locator-option-title" }, cls.className || "未命名班級"),
+                                React.createElement("span", { className:"class-locator-option-meta" },
+                                    [normalizedClassYear.valid ? normalizedClassYear.rocYear + " 學年度" : cls.year, cls.school].filter(Boolean).join("｜"))
+                            ),
+                            isActive && React.createElement("span", { className:"class-locator-current" }, "目前")
+                        );
+                    })
+            ),
+            React.createElement("button", {
+                type:"button",className:"class-locator-action",style:{width:"100%",marginTop:12},
+                onClick:function(){setShowClassLocator(false);setView("settings");}
+            }, "管理班級設定")
+        )),
         showTodayDashboard && React.createElement("div", {
             className:"v18-sheet-overlay",
             role:"dialog", 'aria-modal':"true", 'aria-label':"今日工作台",
             onClick:function(e){if(e.target===e.currentTarget&&!todayDashboardBusy)setShowTodayDashboard(false);},
             style:{position:"fixed",inset:0,zIndex:9600,background:"rgba(0,0,0,.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}
-        }, React.createElement("div", { className:"v18-sheet-panel", style:{width:"100%",maxWidth:560,maxHeight:"88vh",overflowY:"auto",background:isNerv?"#100500":isNebula?"#111329":"#f7f9fc",color:isNerv?"#ff9955":isNebula?"#d7ccff":"#1e3a5f",borderRadius:20,padding:16,boxShadow:"0 20px 60px rgba(0,0,0,.45)"} },
+        }, React.createElement("div", { className:"v18-sheet-panel today-workspace-panel", style:{width:"100%",maxWidth:560,maxHeight:"88vh",overflowY:"auto",background:isNerv?"#100500":isNebula?"#111329":isMucha?"#f4ebdd":"#f7f9fc",color:isNerv?"#ff9955":isNebula?"#d7ccff":isMucha?"#39312c":"#1e3a5f",borderRadius:20,padding:16,boxShadow:"0 20px 60px rgba(0,0,0,.45)"} },
             React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8,marginBottom:12} },
                 React.createElement("div", { style:{fontSize:19,fontWeight:900,flex:1} }, isNerv?"◈ TODAY OPERATIONS":"🏠 今日工作台"),
                 React.createElement("button", { onClick:openTodayWorkspace,disabled:todayDashboardBusy,style:{border:"none",borderRadius:9,padding:"6px 9px",background:isNerv?"rgba(255,102,0,.13)":"#e6edf6",color:"inherit",fontSize:11,fontWeight:800,cursor:"pointer"} }, "重新整理"),
                 React.createElement("button", { onClick:function(){setShowTodayDashboard(false);},disabled:todayDashboardBusy,'aria-label':"關閉今日工作台",style:{border:"none",background:"transparent",color:"inherit",fontSize:24,cursor:"pointer"} }, "×")),
+            React.createElement("div", { className:"mucha-panel-divider", "aria-hidden":"true" }),
             todayDashboardBusy && !todayDashboardData
                 ? React.createElement("div", { style:{padding:34,textAlign:"center",opacity:.65} }, "正在整理今天的資料…")
                 : todayDashboardData && React.createElement(React.Fragment, null,
@@ -11884,10 +12674,11 @@ function App() {
             role:"dialog", 'aria-modal':"true", 'aria-label':"全域搜尋",
             onClick:function(e){if(e.target===e.currentTarget&&!globalSearchBusy)setShowGlobalSearch(false);},
             style:{position:"fixed",inset:0,zIndex:9650,background:"rgba(0,0,0,.74)",display:"flex",alignItems:"center",justifyContent:"center",padding:14}
-        }, React.createElement("div", { className:"v18-sheet-panel", style:{width:"100%",maxWidth:620,maxHeight:"88vh",overflowY:"auto",background:isNerv?"#100500":isNebula?"#111329":"#f8fafc",color:isNerv?"#ff9955":isNebula?"#d7ccff":"#1e3a5f",borderRadius:20,padding:16,boxShadow:"0 20px 60px rgba(0,0,0,.48)"} },
+        }, React.createElement("div", { className:"v18-sheet-panel global-search-panel", style:{width:"100%",maxWidth:620,maxHeight:"88vh",overflowY:"auto",background:isNerv?"#100500":isNebula?"#111329":isMucha?"#f4ebdd":"#f8fafc",color:isNerv?"#ff9955":isNebula?"#d7ccff":isMucha?"#39312c":"#1e3a5f",borderRadius:20,padding:16,boxShadow:"0 20px 60px rgba(0,0,0,.48)"} },
             React.createElement("div", { style:{display:"flex",alignItems:"center",gap:8,marginBottom:11} },
                 React.createElement("div", { style:{fontSize:19,fontWeight:900,flex:1} }, isNerv?"◈ GLOBAL SEARCH":"🔎 全域搜尋"),
                 React.createElement("button", { onClick:function(){setShowGlobalSearch(false);},disabled:globalSearchBusy,'aria-label':"關閉全域搜尋",style:{border:"none",background:"transparent",color:"inherit",fontSize:24,cursor:"pointer"} }, "×")),
+            React.createElement("div", { className:"mucha-panel-divider", "aria-hidden":"true" }),
             React.createElement("div", { style:{display:"flex",gap:7,marginBottom:9} },
                 React.createElement("input", {
                     value:globalSearchQuery,onChange:function(e){setGlobalSearchQuery(e.target.value);},
@@ -11948,10 +12739,12 @@ function App() {
                     { icon: '🗂', label: '歷年档案', nervLabel: '\u25ab ARCHIVE', action: function(){ setView('archive'); setShowGearMenu(false); } },
                     { icon: '📅', label: '週作業計畫', nervLabel: '\u25a6 WEEK PLAN', action: function(){ wpOpenPlan(selDate || today()); setShowGearMenu(false); } },
                     { icon: syncConflicts.length > 0 ? '⚠️' : '🔄', label: '同步衝突' + (syncConflicts.length > 0 ? '（' + syncConflicts.length + '）' : ''), nervLabel: '\u25c8 SYNC CONFLICT' + (syncConflicts.length > 0 ? ' [' + syncConflicts.length + ']' : ''), action: function(){ setShowConflictCenter(true); setShowGearMenu(false); } },
+                    { icon: '🩺', label: '技術診斷', nervLabel: '\u25c7 DIAGNOSTICS', hidden:view !== 'day', action: function(){ var btn=document.querySelector('[data-day-tool="diagnostic"]'); if(btn) btn.click(); setShowGearMenu(false); } },
+                    { icon: '🎴', label: '獎卡資料掃描', nervLabel: '\u25c7 CARD SCAN', hidden:view !== 'day', action: function(){ var btn=document.querySelector('[data-day-tool="card-scan"]'); if(btn) btn.click(); setShowGearMenu(false); } },
                     { icon: '⚙️', label: '班級設定', nervLabel: '\u2699 CONFIG', action: function(){ setView('settings'); setShowGearMenu(false); } },
                     { icon: '📋', label: '匯入行事曆', nervLabel: '\u25c8 IMPORT CAL', action: function(){ setShowCalImport(true); setShowGearMenu(false); } },
                     { icon: '🎴', label: '開啟獎卡系統', nervLabel: '\u25c7 CARD SYSTEM', action: function(){ window.open('https://n3a209-leon.github.io/card-system'); setShowGearMenu(false); } },
-                ].map(function(item, i) {
+                ].filter(function(item){ return !item.hidden; }).map(function(item, i) {
                     return React.createElement("button", {
                         key: i, onClick: item.action,
                         style: {
@@ -12010,15 +12803,16 @@ function App() {
                 })
         )),
         showThemeMenu && (React.createElement("div", { onClick: () => setShowThemeMenu(false), style: { position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,.5)' } },
-            React.createElement("div", { onClick: e => e.stopPropagation(), style: { position: 'absolute', bottom: 0, left: 0, right: 0, background: theme === 'nerv' ? '#120400' : theme === 'nebula' ? '#0a0c20' : '#fff', borderRadius: '20px 20px 0 0', padding: '12px 0 40px', boxShadow: '0 -8px 40px rgba(0,0,0,.3)' } },
+            React.createElement("div", { className:"theme-menu-panel", onClick: e => e.stopPropagation(), style: { position: 'absolute', bottom: 0, left: 0, right: 0, background: theme === 'nerv' ? '#120400' : theme === 'nebula' ? '#0a0c20' : theme === 'mucha' ? '#f4ebdd' : '#fff', borderRadius: '20px 20px 0 0', padding: '12px 0 max(12px,var(--safe-bottom))', boxShadow: '0 -8px 40px rgba(0,0,0,.3)' } },
                 React.createElement("div", { style: { width: 40, height: 4, borderRadius: 2, background: 'rgba(128,128,128,.3)', margin: '0 auto 16px' } }),
-                React.createElement("p", { style: { textAlign: 'center', fontSize: 12, fontWeight: 700, color: theme === 'nerv' ? 'rgba(255,102,0,.5)' : theme === 'nebula' ? 'rgba(150,120,255,.5)' : '#aab8cc', marginBottom: 12, letterSpacing: 2 } }, "\u9078\u64C7\u4E3B\u984C"),
-                THEMES.map((t, i) => (React.createElement("button", { key: t.id, onClick: () => setThemeAndSave(t.id), style: { display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '16px 24px', background: theme === t.id ? (theme === 'nerv' ? 'rgba(255,102,0,.15)' : theme === 'nebula' ? 'rgba(150,100,255,.15)' : '#f0f4ff') : 'transparent', border: 'none', borderTop: i > 0 ? '1px solid ' + (theme === 'nerv' ? 'rgba(255,102,0,.1)' : theme === 'nebula' ? 'rgba(150,100,255,.1)' : 'rgba(0,0,0,.06)') : 'none', cursor: 'pointer', textAlign: 'left', color: theme === 'nerv' ? '#ff8844' : theme === 'nebula' ? '#c8b0ff' : '#1e3a5f', fontFamily: theme === 'nerv' ? 'Share Tech Mono,monospace' : 'inherit' } },
+                React.createElement("p", { style: { textAlign: 'center', fontSize: 12, fontWeight: 700, color: theme === 'nerv' ? 'rgba(255,102,0,.5)' : theme === 'nebula' ? 'rgba(150,120,255,.5)' : theme === 'mucha' ? '#7a5a2d' : '#aab8cc', marginBottom: 5, letterSpacing: 2 } }, "\u9078\u64C7\u4E3B\u984C"),
+                React.createElement("div", { className:"mucha-panel-divider", "aria-hidden":"true" }),
+                THEMES.map((t, i) => (React.createElement("button", { key: t.id, onClick: () => setThemeAndSave(t.id), style: { display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '16px 24px', background: theme === t.id ? (theme === 'nerv' ? 'rgba(255,102,0,.15)' : theme === 'nebula' ? 'rgba(150,100,255,.15)' : theme === 'mucha' ? 'rgba(117,131,107,.13)' : '#f0f4ff') : 'transparent', border: 'none', borderTop: i > 0 ? '1px solid ' + (theme === 'nerv' ? 'rgba(255,102,0,.1)' : theme === 'nebula' ? 'rgba(150,100,255,.1)' : theme === 'mucha' ? 'rgba(139,99,47,.16)' : 'rgba(0,0,0,.06)') : 'none', cursor: 'pointer', textAlign: 'left', color: theme === 'nerv' ? '#ff8844' : theme === 'nebula' ? '#c8b0ff' : theme === 'mucha' ? '#39312c' : '#1e3a5f', fontFamily: theme === 'nerv' ? 'Share Tech Mono,monospace' : 'inherit' } },
                     React.createElement("span", { style: { fontSize: 24 } }, t.icon),
                     React.createElement("div", null,
                         React.createElement("div", { style: { fontSize: 15, fontWeight: 700 } }, t.name),
                         React.createElement("div", { style: { fontSize: 11, opacity: .6, marginTop: 2 } }, t.desc)),
-                    theme === t.id && React.createElement("span", { style: { marginLeft: 'auto', fontSize: 18, color: theme === 'nerv' ? '#ff6600' : theme === 'nebula' ? '#a080ff' : '#1e3a5f' } }, "\u2713"))))))),
+                    theme === t.id && React.createElement("span", { style: { marginLeft: 'auto', fontSize: 18, color: theme === 'nerv' ? '#ff6600' : theme === 'nebula' ? '#a080ff' : theme === 'mucha' ? '#b28a45' : '#1e3a5f' } }, "\u2713"))))))),
         !!dayTransition && React.createElement("div", { className: "galaxy-transition" },
             React.createElement("div", { className: "galaxy-transition-wrap " + dayTransition },
                 React.createElement("img", {
@@ -13128,7 +13922,7 @@ setTimeout(function(){
       }
       var textNode = document.getElementById('limu-update-text');
       var buttonNode = document.getElementById('limu-update-button');
-      textNode.textContent = message || '📦 App v18.1 已下載完成';
+      textNode.textContent = message || '📦 App v20 已下載完成';
       buttonNode.textContent = mismatch ? '重新檢查' : '立即更新';
       buttonNode.setAttribute('aria-label', mismatch ? '重新檢查部署版本' : '啟用 App 新版本');
       buttonNode.onclick = function(){
@@ -13159,8 +13953,8 @@ setTimeout(function(){
     ]).then(function(results){
       var info = results[0], swText = results[1] || '';
       var myBuild = currentBuildId(), myCache = currentCacheName();
-      if (!info || (myBuild && (info.buildId !== myBuild || info.cacheName !== myCache || swText.indexOf(myBuild) < 0 || swText.indexOf("CACHE_PREFIX + 'v18-1'") < 0))) {
-        showUpdateBar(reg, '⚠️ 部署檔案版本不一致，請重新上傳完整 v18.1 部署包', true);
+      if (!info || (myBuild && (info.buildId !== myBuild || info.cacheName !== myCache || swText.indexOf(myBuild) < 0 || swText.indexOf("CACHE_PREFIX + 'v20'") < 0))) {
+        showUpdateBar(reg, '⚠️ 部署檔案版本不一致，請重新上傳完整 v20 部署包', true);
       }
     }).catch(function(){ /* 離線時不顯示混版警告 */ });
     try {
@@ -13171,7 +13965,7 @@ setTimeout(function(){
         clearTimeout(timer);
         var info = event.data || {};
         if (info.buildId && currentBuildId() && info.buildId !== currentBuildId() && !reg.waiting && !reg.installing) {
-          showUpdateBar(reg, '📦 App v18.1 更新檔已發現，準備下載', false);
+          showUpdateBar(reg, '📦 App v20 更新檔已發現，準備下載', false);
           reg.update();
         }
       };

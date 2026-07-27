@@ -2,8 +2,8 @@
 // 導覽採 Network First，靜態檔採 Stale While Revalidate。
 
 const CACHE_PREFIX = 'hw-tracker-';
-const CACHE_NAME = CACHE_PREFIX + 'v18-1';
-const BUILD_ID = 'limu-teacher-v18-1-20260727';
+const CACHE_NAME = CACHE_PREFIX + 'v20';
+const BUILD_ID = 'limu-teacher-v20-20260727';
 const PRECACHE_URLS = [
   './index.html',
   './version.json',
@@ -15,7 +15,10 @@ const PRECACHE_URLS = [
   './assets/apple-touch-icon.jpg',
   './assets/gallery-forward.jpg',
   './assets/login-background.jpg',
-  './assets/splash-art.jpg'
+  './assets/splash-art.jpg',
+  './assets/mucha-arch.svg',
+  './assets/mucha-frame.svg',
+  './assets/mucha-divider.svg'
 ];
 
 self.addEventListener('install', function(event) {
