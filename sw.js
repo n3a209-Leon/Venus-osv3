@@ -1,9 +1,11 @@
 // 教師專用小工具 PWA Service Worker
-// v20.5：強制以網路最新版驗證導覽，避免 iPhone 長期停留在舊 App Shell。
+// v20.7：完整接入藍紫鳶尾主題圖示，並保留 iPhone 可靠換版。
 
 const CACHE_PREFIX = 'hw-tracker-';
-const CACHE_NAME = CACHE_PREFIX + 'v20-5';
-const BUILD_ID = 'limu-teacher-v20-5-20260727';
+const CACHE_NAME = 'hw-tracker-v20-7';
+const BUILD_ID = 'limu-teacher-v20-7-20260727';
+// 頁面會核對這個完整字面標記；不可改回由兩段字串拼接，否則會再次誤報。
+const DEPLOYMENT_MARKER = 'limu-teacher-v20-7-20260727|hw-tracker-v20-7';
 const PRECACHE_URLS = [
   './index.html',
   './version.json',
@@ -37,7 +39,7 @@ self.addEventListener('install', function(event) {
         info.buildId !== BUILD_ID ||
         info.cacheName !== CACHE_NAME ||
         results[1].indexOf(BUILD_ID) < 0 ||
-        results[2].indexOf(BUILD_ID) < 0
+        results[2].indexOf(DEPLOYMENT_MARKER) < 0
       ) {
         throw new Error('LIMU deployment files are from different builds');
       }
@@ -89,7 +91,7 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // 導覽一律繞過 HTTP 快取；伺服器若暫時仍回舊 HTML，改用已驗證的 v20.5 App Shell。
+  // 導覽一律繞過 HTTP 快取；伺服器若暫時仍回舊 HTML，改用已驗證的 v20.7 App Shell。
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request, { cache:'no-store' }).then(function(response) {
