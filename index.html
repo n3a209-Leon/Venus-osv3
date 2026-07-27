@@ -2452,7 +2452,7 @@
           .class-locator-metrics{grid-template-columns:repeat(4,minmax(58px,1fr))}
         }
 
-        /* ══ v20：慕夏新藝術裝飾主題＋Nebula 慕夏點綴 ══════════════ */
+        /* ══ v20.2：藍紫鳶尾慕夏裝飾＋Nebula 個人識別花點綴 ══════════ */
         .app[data-theme="mucha"]{
           --mucha-paper:#f4ebdd;
           --mucha-paper-deep:#e8dcc8;
@@ -2460,15 +2460,41 @@
           --mucha-green:#355a50;
           --mucha-sage:#75836b;
           --mucha-gold:#b28a45;
-          --mucha-rose:#b97078;
+          --mucha-iris:#3b3198;
+          --mucha-lavender:#7564c7;
+          --mucha-enamel:#8fc1d3;
           --mucha-line:rgba(139,99,47,.28);
           color:var(--mucha-ink);
           background:
             radial-gradient(circle at 50% -9rem,rgba(210,179,109,.25),transparent 27rem),
             radial-gradient(circle at -10% 34%,rgba(117,131,107,.12),transparent 25rem),
-            radial-gradient(circle at 110% 78%,rgba(185,112,120,.10),transparent 23rem),
+            radial-gradient(circle at 110% 78%,rgba(59,49,152,.08),transparent 23rem),
             repeating-linear-gradient(0deg,rgba(91,71,48,.018) 0 1px,transparent 1px 5px),
             linear-gradient(180deg,#f7f0e5 0%,#f2e8d8 48%,#eee2d0 100%);
+        }
+        /* 主外框永遠位於內容後方；內容卡自然遮住中央區域，
+           只讓金工與鳶尾從外緣、卡片間隙和真正留白處露出。 */
+        .app[data-theme="mucha"] main{
+          position:relative;
+          isolation:isolate;
+        }
+        .app[data-theme="mucha"] main::before{
+          content:"";
+          position:absolute;
+          inset:-8px -5px 0;
+          z-index:0;
+          min-height:min(1180px,calc(100% + 16px));
+          background:
+            url("./assets/mucha-corner.webp") right 10px top 12px/86px 86px no-repeat,
+            url("./assets/mucha-master-frame.webp") center top/min(100%,920px) auto no-repeat;
+          opacity:.17;
+          filter:saturate(.86) contrast(.98);
+          pointer-events:none;
+          user-select:none;
+        }
+        .app[data-theme="mucha"] main>*{
+          position:relative;
+          z-index:1;
         }
         .app[data-theme="mucha"] header{
           position:relative;
@@ -2484,9 +2510,11 @@
           position:absolute;
           inset:0;
           z-index:0;
-          background:url("./assets/mucha-arch.svg") center 36%/min(880px,118vw) auto no-repeat;
-          opacity:.24;
-          filter:saturate(.78) brightness(1.18);
+          background:
+            url("./assets/mucha-divider-left.webp") left bottom/auto 30px no-repeat,
+            url("./assets/mucha-divider-right.webp") right bottom/auto 30px no-repeat;
+          opacity:.23;
+          filter:saturate(.88) brightness(1.08);
           pointer-events:none;
         }
         .app[data-theme="mucha"] header::after{
@@ -2495,10 +2523,10 @@
           left:7%;
           right:7%;
           bottom:-1px;
-          height:18px;
+          height:10px;
           z-index:0;
-          background:url("./assets/mucha-divider.svg") center/100% 18px no-repeat;
-          opacity:.58;
+          background:linear-gradient(90deg,transparent,rgba(224,201,135,.72) 18%,rgba(224,201,135,.72) 82%,transparent);
+          opacity:.55;
           pointer-events:none;
         }
         .app[data-theme="mucha"] header>*{position:relative;z-index:1}
@@ -2524,12 +2552,14 @@
         .app[data-theme="mucha"] .class-context-bar::after{
           content:"";
           position:absolute;
-          left:7%;
-          right:7%;
-          bottom:-2px;
-          height:9px;
-          background:url("./assets/mucha-divider.svg") center/100% 9px no-repeat;
-          opacity:.66;
+          left:4px;
+          right:4px;
+          bottom:-4px;
+          height:14px;
+          background:
+            url("./assets/mucha-divider-left.webp") left center/auto 12px no-repeat,
+            url("./assets/mucha-divider-right.webp") right center/auto 12px no-repeat;
+          opacity:.34;
           pointer-events:none;
         }
         .app[data-theme="mucha"] .class-context-main{color:var(--mucha-green)}
@@ -2583,11 +2613,22 @@
           content:"";
           position:absolute;
           inset:3px;
-          z-index:5;
+          z-index:0;
           border-radius:inherit;
-          background:url("./assets/mucha-frame.svg") center/100% 100% no-repeat;
-          opacity:.52;
+          background:url("./assets/mucha-card-frame.webp") center/100% 100% no-repeat;
+          opacity:.24;
           pointer-events:none;
+        }
+        .app[data-theme="mucha"] .calendar,
+        .app[data-theme="mucha"] .month-summary,
+        .app[data-theme="mucha"] .class-locator-hero{
+          isolation:isolate;
+        }
+        .app[data-theme="mucha"] .calendar>*,
+        .app[data-theme="mucha"] .month-summary>*,
+        .app[data-theme="mucha"] .class-locator-hero>*{
+          position:relative;
+          z-index:1;
         }
         .app[data-theme="mucha"] .wd-row{
           background:
@@ -2609,7 +2650,7 @@
           border:1px solid rgba(255,244,214,.78);
           box-shadow:0 4px 12px rgba(122,84,40,.28),0 0 0 3px rgba(178,138,69,.12);
         }
-        .app[data-theme="mucha"] .cal-dot{background:#b97078;box-shadow:0 0 0 2px rgba(185,112,120,.13)}
+        .app[data-theme="mucha"] .cal-dot{background:#5d50b4;box-shadow:0 0 0 2px rgba(93,80,180,.13)}
         .app[data-theme="mucha"] .cal-counsel{color:#7a5b81}
         .app[data-theme="mucha"] .summary-row{border-color:rgba(139,99,47,.17)}
         .app[data-theme="mucha"] .summary-row:hover{background:rgba(226,216,194,.34)}
@@ -2676,8 +2717,8 @@
           inset:4px;
           z-index:0;
           border-radius:inherit;
-          background:url("./assets/mucha-frame.svg") center/100% 100% no-repeat;
-          opacity:.38;
+          background:url("./assets/mucha-card-frame.webp") center/100% 100% no-repeat;
+          opacity:.20;
           pointer-events:none;
         }
         body.limu-theme-mucha .v18-sheet-panel>*,
@@ -2705,65 +2746,224 @@
         .mucha-panel-divider{
           display:none;
           width:100%;
-          height:24px;
-          margin:-4px 0 6px;
-          background:url("./assets/mucha-divider.svg") center/100% 24px no-repeat;
-          opacity:.86;
+          height:34px;
+          margin:-3px 0 5px;
+          background:url("./assets/mucha-gap-divider.webp") center/100% 100% no-repeat;
+          opacity:.66;
+          pointer-events:none;
         }
         body.limu-theme-mucha .mucha-panel-divider{display:block}
+        .mucha-empty-art{display:none}
+        .app[data-theme="mucha"] .mucha-empty-state{
+          position:relative;
+          min-height:118px;
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:center;
+          gap:4px;
+          padding:8px 12px 5px;
+        }
+        .app[data-theme="mucha"] .mucha-empty-art{
+          display:block;
+          width:clamp(48px,15vw,72px);
+          height:auto;
+          margin:0 auto;
+          opacity:.34;
+          filter:saturate(.82) contrast(.96);
+          pointer-events:none;
+          user-select:none;
+        }
+        .app[data-theme="mucha"] .mucha-empty-state > span{
+          position:relative;
+          z-index:1;
+        }
+        .theme-signature-flower{
+          display:block;
+          width:30px;
+          height:30px;
+          object-fit:contain;
+          pointer-events:none;
+          filter:drop-shadow(0 1px 2px rgba(74,48,24,.18));
+        }
+        .theme-toggle-iris{
+          width:22px;
+          height:22px;
+          object-fit:contain;
+          pointer-events:none;
+          filter:drop-shadow(0 1px 2px rgba(28,20,10,.28));
+        }
 
-        /* 星雲主題只加少量新藝術裝飾，保留原本宇宙主視覺。 */
+        /* 星雲主題只加少量新藝術裝飾，保留原本宇宙主視覺。
+           v20.2：只使用燻金藍紫鳶尾邊飾，中央資訊與操作區維持完全淨空。 */
+        .header-status-stack{
+          position:relative;
+          isolation:isolate;
+          max-width:960px;
+          margin:2px auto;
+          padding:3px 10px;
+          display:grid;
+          gap:4px;
+        }
+        .header-status-stack>*{
+          position:relative;
+          z-index:1;
+          margin:0!important;
+          max-width:100%;
+        }
         .app[data-theme="nebula"] header{overflow:hidden}
         .app[data-theme="nebula"] header::after{
           content:"";
           position:absolute;
-          left:9%;
-          right:9%;
-          bottom:-4px;
-          height:58px;
-          background:url("./assets/mucha-arch.svg") center bottom/620px auto no-repeat;
-          opacity:.17;
-          filter:hue-rotate(18deg) saturate(.75) brightness(1.45);
+          left:6px;
+          right:6px;
+          bottom:0;
+          height:34px;
+          background:
+            url("./assets/nebula-edge-left.webp") left bottom/auto 30px no-repeat,
+            url("./assets/nebula-edge-right.webp") right bottom/auto 30px no-repeat;
+          opacity:.20;
           mix-blend-mode:screen;
           pointer-events:none;
         }
         .app[data-theme="nebula"] header>*{position:relative;z-index:1}
+        .app[data-theme="nebula"] .header-status-stack{
+          border-inline:1px solid rgba(215,186,129,.13);
+          border-radius:15px;
+          background:
+            linear-gradient(90deg,rgba(215,186,129,.035),transparent 12%,transparent 88%,rgba(215,186,129,.035));
+        }
+        .app[data-theme="nebula"] .header-status-stack::after{
+          content:"";
+          position:absolute;
+          left:5px;
+          right:5px;
+          bottom:-1px;
+          height:14px;
+          z-index:0;
+          background:
+            url("./assets/nebula-edge-left.webp") left center/auto 13px no-repeat,
+            url("./assets/nebula-edge-right.webp") right center/auto 13px no-repeat;
+          opacity:.18;
+          pointer-events:none;
+        }
         .app[data-theme="nebula"] .class-context-bar::after{
           content:"";
           position:absolute;
-          left:13%;
-          right:13%;
-          bottom:-1px;
-          height:8px;
-          background:url("./assets/mucha-divider.svg") center/100% 8px no-repeat;
-          opacity:.23;
-          filter:hue-rotate(20deg) brightness(1.45);
+          left:8px;
+          right:8px;
+          bottom:-3px;
+          height:14px;
+          background:
+            url("./assets/nebula-edge-left.webp") left center/auto 13px no-repeat,
+            url("./assets/nebula-edge-right.webp") right center/auto 13px no-repeat;
+          opacity:.20;
           pointer-events:none;
         }
+        .app[data-theme="nebula"] main{
+          position:relative;
+          isolation:isolate;
+        }
+        .app[data-theme="nebula"] main::before{
+          content:"";
+          position:absolute;
+          inset:-5px -3px auto;
+          z-index:0;
+          height:190px;
+          background:url("./assets/nebula-mucha-edge.webp") center top/100% 100% no-repeat;
+          opacity:.075;
+          mix-blend-mode:screen;
+          pointer-events:none;
+        }
+        .app[data-theme="nebula"] main>*{position:relative;z-index:1}
+        .app[data-theme="nebula"] .nav-bar,
+        .app[data-theme="mucha"] .nav-bar{
+          position:relative;
+          isolation:isolate;
+          margin-bottom:2px;
+          border:1px solid rgba(215,186,129,.13);
+          border-radius:15px;
+          background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+          box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
+        }
+        .app[data-theme="mucha"] .nav-bar{
+          border-color:rgba(139,99,47,.22);
+          background:linear-gradient(180deg,rgba(255,252,242,.34),rgba(226,216,194,.12));
+        }
+        .app[data-theme="nebula"] .nav-bar::before,
+        .app[data-theme="nebula"] .nav-bar::after,
+        .app[data-theme="mucha"] .nav-bar::before,
+        .app[data-theme="mucha"] .nav-bar::after{
+          content:"";
+          position:absolute;
+          top:50%;
+          width:6px;
+          height:18px;
+          border-block:1px solid rgba(215,186,129,.36);
+          pointer-events:none;
+          transform:translateY(-50%);
+        }
+        .app[data-theme="nebula"] .nav-bar::before,
+        .app[data-theme="mucha"] .nav-bar::before{left:3px;border-left:1px solid rgba(215,186,129,.36);border-radius:7px 0 0 7px}
+        .app[data-theme="nebula"] .nav-bar::after,
+        .app[data-theme="mucha"] .nav-bar::after{right:3px;border-right:1px solid rgba(215,186,129,.36);border-radius:0 7px 7px 0}
+        .app[data-theme="nebula"] .nav-bar>*,
+        .app[data-theme="mucha"] .nav-bar>*{position:relative;z-index:1}
         .app[data-theme="nebula"] .calendar::after{
           content:"";
           position:absolute;
           inset:3px;
-          z-index:4;
+          z-index:0;
           border-radius:inherit;
-          background:url("./assets/mucha-frame.svg") center/100% 100% no-repeat;
-          opacity:.12;
-          filter:hue-rotate(18deg) brightness(1.5);
+          background:url("./assets/nebula-mucha-edge.webp") center/100% 100% no-repeat;
+          opacity:.10;
           mix-blend-mode:screen;
           pointer-events:none;
         }
+        .app[data-theme="nebula"] .calendar{isolation:isolate}
+        .app[data-theme="nebula"] .calendar>*{position:relative;z-index:1}
         .app[data-theme="nebula"] .month-label::after{
           content:"  ❧";
           color:rgba(215,186,129,.52);
           font-size:.8em;
           letter-spacing:3px;
         }
+        .app[data-theme="mucha"] .header-status-stack{
+          border-inline:1px solid rgba(139,99,47,.17);
+          border-radius:15px;
+        }
+        .app[data-theme="mucha"] .header-status-stack::after{
+          content:"";
+          position:absolute;
+          left:5px;
+          right:5px;
+          bottom:-1px;
+          height:14px;
+          z-index:0;
+          background:
+            url("./assets/mucha-divider-left.webp") left center/auto 12px no-repeat,
+            url("./assets/mucha-divider-right.webp") right center/auto 12px no-repeat;
+          opacity:.30;
+          pointer-events:none;
+        }
         @media(max-width:640px){
-          .app[data-theme="mucha"] header::before{background-size:560px auto;opacity:.19}
-          .app[data-theme="mucha"] header::after{left:3%;right:3%;height:13px;background-size:100% 13px}
-          .app[data-theme="mucha"] .class-context-bar::after{left:2%;right:2%;opacity:.52}
+          .app[data-theme="mucha"] main{
+            padding-inline:11px;
+          }
+          .app[data-theme="mucha"] main::before{
+            inset:-7px -4px 0;
+            background-size:72px 72px,100% auto;
+            opacity:.15;
+          }
+          .app[data-theme="mucha"] header::before{
+            background-size:auto 24px,auto 24px;
+            opacity:.19;
+          }
+          .app[data-theme="mucha"] header::after{left:8px;right:8px;height:8px}
+          .app[data-theme="mucha"] .class-context-bar::after{left:3px;right:3px;opacity:.28}
           .app[data-theme="mucha"] .calendar::after,
-          .app[data-theme="mucha"] .month-summary::after{opacity:.38}
+          .app[data-theme="mucha"] .month-summary::after{opacity:.18}
+          .app[data-theme="nebula"] main::before{opacity:.06}
           .app[data-theme="mucha"] .mobile-dock{
             border-color:rgba(139,99,47,.45);
             background:rgba(247,240,229,.95);
@@ -2773,12 +2973,17 @@
           .app[data-theme="nebula"] .mobile-dock::before{
             content:"";
             position:absolute;
-            left:14%;
-            right:14%;
+            left:8px;
+            right:8px;
             top:-2px;
-            height:9px;
-            background:url("./assets/mucha-divider.svg") center/100% 9px no-repeat;
+            height:12px;
             pointer-events:none;
+          }
+          .app[data-theme="mucha"] .mobile-dock::before{
+            background:
+              url("./assets/mucha-divider-left.webp") left center/auto 10px no-repeat,
+              url("./assets/mucha-divider-right.webp") right center/auto 10px no-repeat;
+            opacity:.28;
           }
           .app[data-theme="mucha"] .mobile-dock-btn{color:#71665a}
           .app[data-theme="mucha"] .mobile-dock-btn.active{
@@ -2789,9 +2994,12 @@
             box-shadow:inset 0 2px 0 rgba(226,201,135,.35);
           }
           .app[data-theme="nebula"] .mobile-dock::before{
-            opacity:.24;
-            filter:hue-rotate(18deg) brightness(1.4);
+            background:
+              url("./assets/nebula-edge-left.webp") left center/auto 10px no-repeat,
+              url("./assets/nebula-edge-right.webp") right center/auto 10px no-repeat;
+            opacity:.18;
           }
+          .header-status-stack{padding:3px 8px}
         }
         @media(max-width:390px){
           .class-context-meta{max-width:190px}
@@ -3525,10 +3733,10 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const COUNSEL_PERIODS = ["早自習", "第1節", "第2節", "第3節", "第4節", "午休", "第5節", "第6節", "放學後"];
 const COUNSEL_TYPES = ["學習", "行為", "情緒", "人際", "家庭", "其他"];
 const COUNSEL_FOLLOWUP = ["需追蹤", "已處理", "轉介"];
-const APP_VERSION = "16.0.0";
+const APP_VERSION = "16.0.2";
 const APP_BUILD_DATE = "2026-07-27";
-const APP_BUILD_ID = "limu-teacher-v20-20260727";
-const APP_CACHE_NAME = "hw-tracker-v20";
+const APP_BUILD_ID = "limu-teacher-v20-2-20260727";
+const APP_CACHE_NAME = "hw-tracker-v20-2";
 window.__LIMU_BUILD__ = Object.freeze({
     appVersion: APP_VERSION,
     buildDate: APP_BUILD_DATE,
@@ -7861,11 +8069,23 @@ function App() {
         { id: 'default', icon: '☀️', name: '一般模式', desc: '清爽藍白配色' },
         { id: 'nebula', icon: '🌌', name: '星雲模式', desc: '天馬座星雲・深邃宇宙' },
         { id: 'nerv', icon: '⬡', name: 'NERV模式', desc: '新世紀福音戰士' },
-        { id: 'mucha', icon: '❧', name: '慕夏・新藝術', desc: '植物鞭線・日輪金框・象牙紙色' },
+        { id: 'mucha', icon: '❧', image: './assets/signature-blue-iris.webp', name: '慕夏・藍紫鳶尾', desc: '你的代表花・智慧、信念與勇氣' },
     ];
     const isNerv = theme === "nerv";
     const isNebula = theme === "nebula";
     const isMucha = theme === "mucha";
+    function renderMuchaEmpty(text, className) {
+        return React.createElement("div", { className:(className || "no-data") + " mucha-empty-state" },
+            React.createElement("img", {
+                className:"mucha-empty-art",
+                src:"./assets/mucha-empty-ornament.webp",
+                alt:"",
+                draggable:false,
+                "aria-hidden":"true"
+            }),
+            React.createElement("span", null, text)
+        );
+    }
     useEffect(function() {
         var body = document.body;
         var themeMeta = document.querySelector('meta[name="theme-color"]');
@@ -10770,7 +10990,7 @@ function App() {
                     // 輔導紀錄
                     React.createElement("button", { className: "theme-btn header-quick-btn", onClick: function() { setGrCenter(true); setGrTab('recent'); setGrFilter('7'); setGrSearch(''); }, title: "輔導紀錄中心", 'aria-label':"開啟輔導紀錄中心", style: { background: grRecords.length > 0 ? "rgba(156,39,176,.35)" : "rgba(255,255,255,.15)", fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, isNerv ? "▣" : "📋"),
                     // 主題切換
-                    React.createElement("button", { className: "theme-btn", onClick: handleThemeToggle, 'aria-label':"切換顯示主題", style: { background: theme === 'nerv' ? 'rgba(255,102,0,.2)' : theme === 'nebula' ? 'rgba(150,100,255,.2)' : theme === 'mucha' ? 'rgba(210,179,109,.22)' : 'rgba(255,255,255,.15)', fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, theme === 'nerv' ? '⬡' : theme === 'nebula' ? '🌌' : theme === 'mucha' ? '❧' : '☀️'),
+                    React.createElement("button", { className: "theme-btn", onClick: handleThemeToggle, 'aria-label':"切換顯示主題", style: { background: theme === 'nerv' ? 'rgba(255,102,0,.2)' : theme === 'nebula' ? 'rgba(150,100,255,.2)' : theme === 'mucha' ? 'rgba(210,179,109,.22)' : 'rgba(255,255,255,.15)', fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, theme === 'nerv' ? '⬡' : theme === 'nebula' ? '🌌' : theme === 'mucha' ? React.createElement("img", { className:"theme-toggle-iris",src:"./assets/signature-blue-iris.webp",alt:"","aria-hidden":"true",draggable:false }) : '☀️'),
                     // 齒輪選單
                     React.createElement("button", { className: "theme-btn", onClick: function() { setShowGearMenu(true); }, title: "選單", 'aria-label':"開啟功能選單", style: { fontSize: 14, width: 32, height: 32, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } }, "⚙️")
                 ),
@@ -10867,26 +11087,28 @@ function App() {
                 React.createElement("span", null, "✈️ 離線模式"),
                 React.createElement("span", { style:{opacity:.75, fontWeight:400} }, "資料已存在本機，恢復網路後自動同步")
             ),
-            schoolCalendarInfo.needsUpdate && React.createElement("button", {
-                onClick:function(){ setShowCalImport(true); },
-                style:{
-                    width:'auto', margin:'3px 10px', border:'none', borderRadius:12, padding:'7px 12px', textAlign:'left',
-                    background:schoolCalendarInfo.expired?'#fff3e0':'#fff8e1',
-                    color:schoolCalendarInfo.expired?'#c62828':'#8d6e00', fontSize:12, fontWeight:700,
-                    cursor:'pointer'
-                },
-                'aria-label':'更新學校行事曆'
-            }, '📅 ' + (schoolCalendarInfo.rocYear ? schoolCalendarInfo.rocYear + ' 學年度行事曆' : '行事曆') +
-                (schoolCalendarInfo.expired ? '已到期' : '即將到期') + '，點此匯入新學年度'),
-            renderSafetyNudge(),
-            React.createElement("div", { className: "stor-bar stor-"+stor.state, style:{ margin:'3px 10px', borderRadius:12, padding:'3px 12px' } },
-                React.createElement("span", { className: "stor-msg" }, stor.msg),
-                grRecords.length > 0 && React.createElement("span", {
-                    onClick: function(){ setGrCenter(true); setGrTab('recent'); setGrFilter('all'); setGrSearch(''); },
-                    style:{ cursor:'pointer', fontWeight:700, textDecoration:'underline', textUnderlineOffset:2 }
-                }, '📋 輔導紀錄 ' + grRecords.length + ' 筆'),
-                stor.detail && React.createElement("span", { className: "stor-detail" }, stor.detail),
-                view !== "month" && renderSyncChip('stor')),
+            React.createElement("div", { className:"header-status-stack", role:"region", 'aria-label':"資料與行事曆狀態" },
+                schoolCalendarInfo.needsUpdate && React.createElement("button", {
+                    onClick:function(){ setShowCalImport(true); },
+                    style:{
+                        width:'auto', margin:'3px 10px', border:'none', borderRadius:12, padding:'7px 12px', textAlign:'left',
+                        background:schoolCalendarInfo.expired?'#fff3e0':'#fff8e1',
+                        color:schoolCalendarInfo.expired?'#c62828':'#8d6e00', fontSize:12, fontWeight:700,
+                        cursor:'pointer'
+                    },
+                    'aria-label':'更新學校行事曆'
+                }, '📅 ' + (schoolCalendarInfo.rocYear ? schoolCalendarInfo.rocYear + ' 學年度行事曆' : '行事曆') +
+                    (schoolCalendarInfo.expired ? '已到期' : '即將到期') + '，點此匯入新學年度'),
+                renderSafetyNudge(),
+                React.createElement("div", { className: "stor-bar stor-"+stor.state, style:{ margin:'3px 10px', borderRadius:12, padding:'3px 12px' } },
+                    React.createElement("span", { className: "stor-msg" }, stor.msg),
+                    grRecords.length > 0 && React.createElement("span", {
+                        onClick: function(){ setGrCenter(true); setGrTab('recent'); setGrFilter('all'); setGrSearch(''); },
+                        style:{ cursor:'pointer', fontWeight:700, textDecoration:'underline', textUnderlineOffset:2 }
+                    }, '📋 輔導紀錄 ' + grRecords.length + ' 筆'),
+                    stor.detail && React.createElement("span", { className: "stor-detail" }, stor.detail),
+                    view !== "month" && renderSyncChip('stor'))
+            ),
             view === "month" && React.createElement("div", { className: "nav-bar" },
                 React.createElement("button", { className: "nav-btn", onClick: prevMonth, 'aria-label':"上一個月" }, "\u2039"),
                 React.createElement("span", { className: "month-label" }, isNerv
@@ -11094,7 +11316,9 @@ function App() {
                                 absentCount,
                                 " \u4EBA"))));
                 }),
-                monthRecordEntries.length === 0 && (React.createElement("p", { className: "no-data" }, isNerv ? "// NO MISSION DATA THIS MONTH //" : "本月尚無紀錄，點選日期開始登記")),
+                monthRecordEntries.length === 0 && (React.createElement("div", { className: "no-data mucha-empty-state" },
+                    React.createElement("img", { className:"mucha-empty-art", src:"./assets/mucha-empty-ornament.webp", alt:"", "aria-hidden":"true", draggable:false }),
+                    React.createElement("span", null, isNerv ? "// NO MISSION DATA THIS MONTH //" : "本月尚無紀錄，點選日期開始登記"))),
                 React.createElement("div", { style: { margin: "8px 0 4px" } },
                     React.createElement("button", {
                         className: "excel-btn",
@@ -12721,7 +12945,7 @@ function App() {
         showGearMenu && (React.createElement("div", { role:'dialog', 'aria-modal':'true', 'aria-label':'功能選單', onClick: function() { setShowGearMenu(false); }, style: { position: 'fixed', inset: 0, zIndex: 350, background: 'rgba(0,0,0,.6)' } },
             React.createElement("div", { onClick: function(e){ e.stopPropagation(); }, style: {
                 position: 'absolute', bottom: 0, left: 0, right: 0,
-                background: theme === 'nerv' ? '#120400' : theme === 'nebula' ? '#0a0c20' : '#fff',
+                background: theme === 'nerv' ? '#120400' : theme === 'nebula' ? '#0a0c20' : theme === 'mucha' ? '#f4ebdd' : '#fff',
                 borderRadius: '20px 20px 0 0',
                 padding: '20px 0 max(12px,var(--safe-bottom))',
                 boxShadow: '0 -8px 40px rgba(0,0,0,.3)',
@@ -12729,10 +12953,10 @@ function App() {
             } },
                 React.createElement("div", { style: {
                     textAlign: 'center', fontSize: 11, fontWeight: 700, letterSpacing: 3,
-                    color: theme === 'nerv' ? 'rgba(255,102,0,.5)' : theme === 'nebula' ? 'rgba(150,120,255,.5)' : '#aab8cc',
+                    color: theme === 'nerv' ? 'rgba(255,102,0,.5)' : theme === 'nebula' ? 'rgba(150,120,255,.5)' : theme === 'mucha' ? '#7a5a2d' : '#aab8cc',
                     marginBottom: 8, fontFamily: theme === 'nerv' ? 'Share Tech Mono,monospace' : 'inherit'
                 } }, theme === 'nerv' ? '// VENUS OS MENU //' : 'Venus OS'),
-                React.createElement("div", { style: { height: 1, background: theme === 'nerv' ? 'rgba(255,102,0,.15)' : theme === 'nebula' ? 'rgba(150,100,255,.15)' : 'rgba(0,0,0,.06)', margin: '0 0 8px' } }),
+                React.createElement("div", { className:"mucha-panel-divider", "aria-hidden":"true" }),
                 [
                     { icon: '🏠', label: '今日工作台', nervLabel: '\u25c8 TODAY DESK', action: function(){ openTodayWorkspace(); setShowGearMenu(false); } },
                     { icon: '🔎', label: '全域搜尋', nervLabel: '\u25c7 GLOBAL SEARCH', action: function(){ setShowGlobalSearch(true); setShowGearMenu(false); } },
@@ -12751,9 +12975,9 @@ function App() {
                             display: 'flex', alignItems: 'center', gap: 16,
                             width: '100%', padding: '16px 28px',
                             background: 'transparent', border: 'none',
-                            borderTop: i > 0 ? '1px solid ' + (theme === 'nerv' ? 'rgba(255,102,0,.1)' : theme === 'nebula' ? 'rgba(150,100,255,.1)' : 'rgba(0,0,0,.06)') : 'none',
+                            borderTop: i > 0 ? '1px solid ' + (theme === 'nerv' ? 'rgba(255,102,0,.1)' : theme === 'nebula' ? 'rgba(150,100,255,.1)' : theme === 'mucha' ? 'rgba(139,99,47,.16)' : 'rgba(0,0,0,.06)') : 'none',
                             cursor: 'pointer', textAlign: 'left',
-                            color: theme === 'nerv' ? '#ff8844' : theme === 'nebula' ? '#c8b0ff' : '#1e3a5f',
+                            color: theme === 'nerv' ? '#ff8844' : theme === 'nebula' ? '#c8b0ff' : theme === 'mucha' ? '#39312c' : '#1e3a5f',
                             fontFamily: theme === 'nerv' ? 'Share Tech Mono,monospace' : 'inherit',
                             fontSize: 15, fontWeight: 600,
                         }
@@ -12808,7 +13032,9 @@ function App() {
                 React.createElement("p", { style: { textAlign: 'center', fontSize: 12, fontWeight: 700, color: theme === 'nerv' ? 'rgba(255,102,0,.5)' : theme === 'nebula' ? 'rgba(150,120,255,.5)' : theme === 'mucha' ? '#7a5a2d' : '#aab8cc', marginBottom: 5, letterSpacing: 2 } }, "\u9078\u64C7\u4E3B\u984C"),
                 React.createElement("div", { className:"mucha-panel-divider", "aria-hidden":"true" }),
                 THEMES.map((t, i) => (React.createElement("button", { key: t.id, onClick: () => setThemeAndSave(t.id), style: { display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '16px 24px', background: theme === t.id ? (theme === 'nerv' ? 'rgba(255,102,0,.15)' : theme === 'nebula' ? 'rgba(150,100,255,.15)' : theme === 'mucha' ? 'rgba(117,131,107,.13)' : '#f0f4ff') : 'transparent', border: 'none', borderTop: i > 0 ? '1px solid ' + (theme === 'nerv' ? 'rgba(255,102,0,.1)' : theme === 'nebula' ? 'rgba(150,100,255,.1)' : theme === 'mucha' ? 'rgba(139,99,47,.16)' : 'rgba(0,0,0,.06)') : 'none', cursor: 'pointer', textAlign: 'left', color: theme === 'nerv' ? '#ff8844' : theme === 'nebula' ? '#c8b0ff' : theme === 'mucha' ? '#39312c' : '#1e3a5f', fontFamily: theme === 'nerv' ? 'Share Tech Mono,monospace' : 'inherit' } },
-                    React.createElement("span", { style: { fontSize: 24 } }, t.icon),
+                    t.image
+                        ? React.createElement("img", { className:"theme-signature-flower", src:t.image, alt:"", "aria-hidden":"true", draggable:false })
+                        : React.createElement("span", { style: { fontSize: 24 } }, t.icon),
                     React.createElement("div", null,
                         React.createElement("div", { style: { fontSize: 15, fontWeight: 700 } }, t.name),
                         React.createElement("div", { style: { fontSize: 11, opacity: .6, marginTop: 2 } }, t.desc)),
@@ -12922,7 +13148,7 @@ function App() {
                         }, isNerv ? "ALL" : "全部")
                     ),
                     grFilteredRecords().length === 0
-                        ? React.createElement("div", { className: "gr-empty" }, isNerv ? "// NO LOG FOUND //" : "此時間範圍內無紀錄，可切換上方時間篩選")
+                        ? renderMuchaEmpty(isNerv ? "// NO LOG FOUND //" : "此時間範圍內無紀錄，可切換上方時間篩選", "gr-empty")
                         : grFilteredRecords().map(function(r) {
                             return React.createElement("div", { key: r.id, className: "gr-record-item", style:{position:"relative"} },
                                 React.createElement("div", { style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:6} },
@@ -12959,7 +13185,7 @@ function App() {
                         })
                     ),
                     grStuSel && (grStuRecords(grStuSel).length === 0
-                        ? React.createElement("div", { className: "gr-empty" }, "無輔導紀錄")
+                        ? renderMuchaEmpty("無輔導紀錄", "gr-empty")
                         : React.createElement(React.Fragment, null,
                             // 周次多選區塊
                             (() => {
@@ -13278,7 +13504,7 @@ function App() {
                         React.createElement("button", { style:{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"inherit",opacity:.6}, onClick: function() { setWpOpen(false); } }, "×")
                     ),
                     wpPlans.length === 0
-                        ? React.createElement("div", { className: "wp-list-empty" }, "尚無任何週計畫")
+                        ? renderMuchaEmpty("尚無任何週計畫", "wp-list-empty")
                         : wpPlans.map(function(plan) {
                             var days = wpWeekDays(plan.weekStart);
                             var totalHw = days.reduce(function(acc, ds) {
@@ -13922,7 +14148,7 @@ setTimeout(function(){
       }
       var textNode = document.getElementById('limu-update-text');
       var buttonNode = document.getElementById('limu-update-button');
-      textNode.textContent = message || '📦 App v20 已下載完成';
+      textNode.textContent = message || '📦 App v20.2 已下載完成';
       buttonNode.textContent = mismatch ? '重新檢查' : '立即更新';
       buttonNode.setAttribute('aria-label', mismatch ? '重新檢查部署版本' : '啟用 App 新版本');
       buttonNode.onclick = function(){
@@ -13953,8 +14179,8 @@ setTimeout(function(){
     ]).then(function(results){
       var info = results[0], swText = results[1] || '';
       var myBuild = currentBuildId(), myCache = currentCacheName();
-      if (!info || (myBuild && (info.buildId !== myBuild || info.cacheName !== myCache || swText.indexOf(myBuild) < 0 || swText.indexOf("CACHE_PREFIX + 'v20'") < 0))) {
-        showUpdateBar(reg, '⚠️ 部署檔案版本不一致，請重新上傳完整 v20 部署包', true);
+      if (!info || (myBuild && (info.buildId !== myBuild || info.cacheName !== myCache || swText.indexOf(myBuild) < 0 || swText.indexOf("CACHE_PREFIX + 'v20-2'") < 0))) {
+        showUpdateBar(reg, '⚠️ 部署檔案版本不一致，請重新上傳完整 v20.2 部署包', true);
       }
     }).catch(function(){ /* 離線時不顯示混版警告 */ });
     try {
@@ -13965,7 +14191,7 @@ setTimeout(function(){
         clearTimeout(timer);
         var info = event.data || {};
         if (info.buildId && currentBuildId() && info.buildId !== currentBuildId() && !reg.waiting && !reg.installing) {
-          showUpdateBar(reg, '📦 App v20 更新檔已發現，準備下載', false);
+          showUpdateBar(reg, '📦 App v20.2 更新檔已發現，準備下載', false);
           reg.update();
         }
       };

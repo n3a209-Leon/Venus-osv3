@@ -2,8 +2,8 @@
 // 導覽採 Network First，靜態檔採 Stale While Revalidate。
 
 const CACHE_PREFIX = 'hw-tracker-';
-const CACHE_NAME = CACHE_PREFIX + 'v20';
-const BUILD_ID = 'limu-teacher-v20-20260727';
+const CACHE_NAME = CACHE_PREFIX + 'v20-2';
+const BUILD_ID = 'limu-teacher-v20-2-20260727';
 const PRECACHE_URLS = [
   './index.html',
   './version.json',
@@ -18,7 +18,19 @@ const PRECACHE_URLS = [
   './assets/splash-art.jpg',
   './assets/mucha-arch.svg',
   './assets/mucha-frame.svg',
-  './assets/mucha-divider.svg'
+  './assets/mucha-divider.svg',
+  './assets/mucha-edgework.svg',
+  './assets/signature-blue-iris.webp',
+  './assets/mucha-master-frame.webp',
+  './assets/mucha-card-frame.webp',
+  './assets/mucha-corner.webp',
+  './assets/mucha-gap-divider.webp',
+  './assets/mucha-empty-ornament.webp',
+  './assets/mucha-divider-left.webp',
+  './assets/mucha-divider-right.webp',
+  './assets/nebula-mucha-edge.webp',
+  './assets/nebula-edge-left.webp',
+  './assets/nebula-edge-right.webp'
 ];
 
 self.addEventListener('install', function(event) {
