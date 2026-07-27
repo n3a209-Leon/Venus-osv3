@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 64" fill="none">
+  <defs>
+    <linearGradient id="gold" x1="20" y1="32" x2="880" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B28A45" stop-opacity="0"/>
+      <stop offset=".16" stop-color="#8B632F"/>
+      <stop offset=".46" stop-color="#D6BC77"/>
+      <stop offset=".54" stop-color="#D6BC77"/>
+      <stop offset=".84" stop-color="#8B632F"/>
+      <stop offset="1" stop-color="#B28A45" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <path d="M15 39C118 39 116 18 204 18C277 18 306 39 387 39" stroke="url(#gold)" stroke-width="3" vector-effect="non-scaling-stroke"/>
+  <path d="M885 39C782 39 784 18 696 18C623 18 594 39 513 39" stroke="url(#gold)" stroke-width="3" vector-effect="non-scaling-stroke"/>
+  <path d="M60 47H363M840 47H537" stroke="#B28A45" stroke-opacity=".46" stroke-width="1.5" stroke-dasharray="1 8" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+  <circle cx="450" cy="32" r="29" fill="#E8D9AA" fill-opacity=".26" stroke="#A77B3C" stroke-width="2" vector-effect="non-scaling-stroke"/>
+  <circle cx="450" cy="32" r="23" stroke="#B28A45" stroke-opacity=".48" stroke-width="1.2" stroke-dasharray="2 5" vector-effect="non-scaling-stroke"/>
+  <g stroke="#76512D" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+    <path d="M450 6C440 17 438 27 442 36C445 28 448 23 450 20C452 23 455 28 458 36C462 27 460 17 450 6Z" fill="#B97078" fill-opacity=".64"/>
+    <path d="M441 25C426 18 415 22 408 32C418 42 430 44 443 37C435 45 436 54 443 61C450 55 452 47 450 38C448 47 450 55 457 61C464 54 465 45 457 37C470 44 482 42 492 32C485 22 474 18 459 25C455 27 452 31 450 36C448 31 445 27 441 25Z" fill="#75836B" fill-opacity=".68"/>
+  </g>
+  <path d="M352 28C371 17 390 18 407 31M548 28C529 17 510 18 493 31" stroke="#75836B" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+  <path d="M368 22C373 12 382 8 393 10C391 21 383 27 368 22ZM532 22C527 12 518 8 507 10C509 21 517 27 532 22Z" fill="#75836B" fill-opacity=".7" stroke="#355A50" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
+</svg>
