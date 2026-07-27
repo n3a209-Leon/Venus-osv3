@@ -2892,6 +2892,56 @@
           pointer-events:none;
           filter:drop-shadow(0 1px 2px rgba(28,20,10,.28));
         }
+        /* v20.10：LIMU 標題列原本的 flex 空白改為主題花邊，
+           不新增任何列高，四個主題各有專屬收邊。 */
+        .hi-flourish{
+          flex:1 1 auto;
+          min-width:0;
+          align-self:center;
+          height:20px;
+          margin:0 6px;
+          pointer-events:none;
+          user-select:none;
+          background:
+            linear-gradient(90deg,transparent 6%,rgba(255,255,255,.20) 34%,rgba(255,255,255,.10) 50%,rgba(255,255,255,.20) 66%,transparent 94%) center/86% 1px no-repeat;
+        }
+        .app[data-theme="mucha"] .hi-flourish{
+          height:22px;
+          background:
+            var(--limu-art-divider-left) left center/auto 20px no-repeat,
+            var(--limu-art-divider-right) right center/auto 20px no-repeat,
+            linear-gradient(90deg,transparent 22%,rgba(232,211,160,.62) 40%,rgba(232,211,160,.30) 50%,rgba(232,211,160,.62) 60%,transparent 78%) center/54% 1px no-repeat;
+          opacity:.92;
+          filter:saturate(1.04) drop-shadow(0 1px 2px rgba(28,22,10,.30));
+        }
+        .app[data-theme="nebula"] .hi-flourish{
+          height:22px;
+          background:
+            var(--limu-art-nebula-left) left center/auto 20px no-repeat,
+            var(--limu-art-nebula-right) right center/auto 20px no-repeat,
+            radial-gradient(circle,rgba(227,199,133,.68) 0 1.5px,transparent 2.5px) center/6px 6px no-repeat,
+            linear-gradient(90deg,transparent 24%,rgba(213,181,122,.46) 42%,rgba(132,103,223,.34) 50%,rgba(213,181,122,.46) 58%,transparent 76%) center/52% 1px no-repeat;
+          opacity:.88;
+          filter:saturate(1.10) brightness(1.10) drop-shadow(0 0 5px rgba(110,79,211,.30));
+        }
+        .app[data-theme="nerv"] .hi-flourish{
+          height:9px;
+          background:
+            repeating-linear-gradient(90deg,rgba(255,102,0,.55) 0 6px,transparent 6px 11px) center/100% 1px no-repeat,
+            linear-gradient(90deg,transparent,rgba(255,102,0,.16),transparent) center/100% 100% no-repeat;
+          opacity:.7;
+        }
+        @media(max-width:640px){
+          .hi-flourish{margin:0 4px}
+          .app[data-theme="mucha"] .hi-flourish{
+            height:20px;
+            background-size:auto 17px,auto 17px,46% 1px;
+          }
+          .app[data-theme="nebula"] .hi-flourish{
+            height:20px;
+            background-size:auto 17px,auto 17px,6px 6px,44% 1px;
+          }
+        }
 
         /* 星雲主題保留宇宙主視覺，但讓燻金藍紫鳶尾在專用邊界層清楚可見。 */
         .header-status-stack{
@@ -3992,10 +4042,10 @@ const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const COUNSEL_PERIODS = ["早自習", "第1節", "第2節", "第3節", "第4節", "午休", "第5節", "第6節", "放學後"];
 const COUNSEL_TYPES = ["學習", "行為", "情緒", "人際", "家庭", "其他"];
 const COUNSEL_FOLLOWUP = ["需追蹤", "已處理", "轉介"];
-const APP_VERSION = "16.0.9";
+const APP_VERSION = "16.0.10";
 const APP_BUILD_DATE = "2026-07-27";
-const APP_BUILD_ID = "limu-teacher-v20-9-20260727";
-const APP_CACHE_NAME = "hw-tracker-v20-9";
+const APP_BUILD_ID = "limu-teacher-v20-10-20260727";
+const APP_CACHE_NAME = "hw-tracker-v20-10";
 window.__LIMU_BUILD__ = Object.freeze({
     appVersion: APP_VERSION,
     buildDate: APP_BUILD_DATE,
@@ -8326,7 +8376,7 @@ function App() {
     const SIGNATURE_IRIS = window.LIMU_ART && window.LIMU_ART.signature
         ? window.LIMU_ART.signature
         : "";
-    const SIGNATURE_IRIS_FILE = "./assets/signature-blue-iris.webp?v=20-9";
+    const SIGNATURE_IRIS_FILE = "./assets/signature-blue-iris.webp?v=20-10";
     const EMPTY_ORNAMENT = window.LIMU_ART && window.LIMU_ART.emptyOrnament
         ? window.LIMU_ART.emptyOrnament
         : "";
@@ -8414,10 +8464,6 @@ function App() {
             }),
             React.createElement("span", null, text)
         );
-    }
-    function renderOrnamentBand() {
-        if (!isMucha && !isNebula) return null;
-        return React.createElement("div", { className:"theme-ornament-band", "aria-hidden":"true" });
     }
     useEffect(function() {
         var body = document.body;
@@ -11317,7 +11363,7 @@ function App() {
                         }
                     }, isNerv ? "NERV" : "LIMU"),
                     React.createElement("span", { style:{ fontSize:11, fontWeight:600, color: isNerv ? "rgba(255,102,0,.75)" : "rgba(255,255,255,.5)", marginLeft:8, alignSelf:"center", letterSpacing:0, whiteSpace:"nowrap" } }, "v" + APP_VERSION),
-                    React.createElement("div", { style:{ flex:1 } }),
+                    React.createElement("div", { className:"hi-flourish", "aria-hidden":"true" }),
                     React.createElement("button", { className:"theme-btn header-quick-btn", onClick:openTodayWorkspace, title:"今日工作台", 'aria-label':"開啟今日工作台", style:{fontSize:14,width:32,height:32,padding:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,193,7,.24)"} }, isNerv ? "TOD" : "🏠"),
                     React.createElement("button", { className:"theme-btn header-quick-btn", onClick:function(){setShowGlobalSearch(true);}, title:"全域搜尋", 'aria-label':"開啟全域搜尋", style:{fontSize:14,width:32,height:32,padding:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(126,87,194,.28)"} }, isNerv ? "SRC" : "🔎"),
                     // 輔導紀錄
@@ -11442,7 +11488,6 @@ function App() {
                     stor.detail && React.createElement("span", { className: "stor-detail" }, stor.detail),
                     view !== "month" && renderSyncChip('stor'))
             ),
-            renderOrnamentBand(),
             view === "month" && React.createElement("div", { className: "nav-bar" },
                 React.createElement("button", { className: "nav-btn", onClick: prevMonth, 'aria-label':"上一個月" }, "\u2039"),
                 React.createElement("span", { className: "month-label" }, isNerv
@@ -14452,8 +14497,8 @@ setTimeout(function(){
   if (!('serviceWorker' in navigator)) return;
   var updateRegistration = null;
   var reloadingForUpdate = false;
-  var SW_BUILD_ID = 'limu-teacher-v20-9-20260727';
-  var SW_CACHE_NAME = 'hw-tracker-v20-9';
+  var SW_BUILD_ID = 'limu-teacher-v20-10-20260727';
+  var SW_CACHE_NAME = 'hw-tracker-v20-10';
   var SW_URL = './sw.js?build=' + encodeURIComponent(SW_BUILD_ID);
   var lastUpdateCheck = 0;
 
@@ -14492,7 +14537,7 @@ setTimeout(function(){
       }
       var textNode = document.getElementById('limu-update-text');
       var buttonNode = document.getElementById('limu-update-button');
-      textNode.textContent = message || '📦 App 16.0.9 已下載完成';
+      textNode.textContent = message || '📦 App 16.0.10 已下載完成';
       buttonNode.textContent = mode === 'mismatch' ? '重新檢查' : mode === 'switching' ? '切換中…' : '立即更新';
       buttonNode.disabled = mode === 'switching';
       buttonNode.setAttribute('aria-label', mode === 'mismatch' ? '重新檢查部署版本' : '啟用 App 新版本');
@@ -14558,7 +14603,7 @@ setTimeout(function(){
         return;
       }
       if (myBuild !== SW_BUILD_ID || myCache !== SW_CACHE_NAME) {
-        showUpdateBar(reg, '⚠️ 目前頁面不是完整 App 16.0.9，請重新載入', 'mismatch');
+        showUpdateBar(reg, '⚠️ 目前頁面不是完整 App 16.0.10，請重新載入', 'mismatch');
       }
     }).catch(function(){ /* 離線時不顯示混版警告 */ });
 
@@ -14592,7 +14637,7 @@ setTimeout(function(){
       try { window._writeLog('step', 'SW registered, scope: ' + reg.scope); } catch(e) {}
 
       if (reg.waiting) {
-        showUpdateBar(reg, '📦 App 16.0.9 已下載完成', 'switching');
+        showUpdateBar(reg, '📦 App 16.0.10 已下載完成', 'switching');
         reg.waiting.postMessage({ type:'SKIP_WAITING' });
       }
 
@@ -14601,7 +14646,7 @@ setTimeout(function(){
         if (!newWorker) return;
         newWorker.addEventListener('statechange', function() {
           if (newWorker.state === 'installed') {
-            showUpdateBar(reg, '📦 App 16.0.9 已下載完成，正在切換', 'switching');
+            showUpdateBar(reg, '📦 App 16.0.10 已下載完成，正在切換', 'switching');
             newWorker.postMessage({ type:'SKIP_WAITING' });
           } else if (newWorker.state === 'redundant') {
             showUpdateBar(reg, '⚠️ 更新檔安裝失敗，請確認已上傳完整 v20.8', 'mismatch');

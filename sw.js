@@ -1,11 +1,11 @@
 // 教師專用小工具 PWA Service Worker
-// v20.9：恢復慕夏／星雲完整裝飾層，四主題各自向量圖示。
+// v20.10：標題列花邊取代獨立飾帶，不佔用任何列高。
 
 const CACHE_PREFIX = 'hw-tracker-';
-const CACHE_NAME = 'hw-tracker-v20-9';
-const BUILD_ID = 'limu-teacher-v20-9-20260727';
+const CACHE_NAME = 'hw-tracker-v20-10';
+const BUILD_ID = 'limu-teacher-v20-10-20260727';
 // 頁面會核對這個完整字面標記；不可改回由兩段字串拼接，否則會再次誤報。
-const DEPLOYMENT_MARKER = 'limu-teacher-v20-9-20260727|hw-tracker-v20-9';
+const DEPLOYMENT_MARKER = 'limu-teacher-v20-10-20260727|hw-tracker-v20-10';
 const PRECACHE_URLS = [
   './index.html',
   './version.json',
